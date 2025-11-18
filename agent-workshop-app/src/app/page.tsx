@@ -212,25 +212,26 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 hero-gradient">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+      <section className="py-24 bg-muted/30">
+        <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="text-center"
           >
-            <h3 className="text-3xl font-bold text-white mb-4">
+            <h3 className="text-3xl font-bold tracking-tight mb-4">
               Ready to Build Your AI Agent?
             </h3>
-            <p className="text-xl text-white/90 mb-8">
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Join thousands of developers and businesses creating specialized AI assistants.
             </p>
             <button 
               onClick={() => setShowBuilder(true)}
-              className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold text-lg transition-colors inline-flex items-center space-x-2"
+              className="btn-default px-8 py-3 text-base font-semibold inline-flex items-center space-x-2"
             >
               <span>Start Building Now</span>
-              <ArrowRightIcon className="w-5 h-5" />
+              <ArrowRightIcon className="w-4 h-4" />
             </button>
           </motion.div>
         </div>
