@@ -2,10 +2,15 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'export',
+  trailingSlash: true,
+  skipTrailingSlashRedirect: true,
+  distDir: 'out',
   experimental: {
     typedRoutes: true,
   },
   images: {
+    unoptimized: true,
     domains: ['images.unsplash.com'],
   },
   webpack: (config, { isServer }) => {

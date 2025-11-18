@@ -1,0 +1,19 @@
+[build]
+  # Directory with the package.json
+  base = "agent-workshop-app"
+  
+  # Build command
+  command = "npm run build"
+  
+  # Directory to publish (relative to base)
+  publish = "out"
+
+# Redirect all routes to index.html for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Optional: Set Node.js version
+[build.environment]
+  NODE_VERSION = "18"
