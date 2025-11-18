@@ -57,7 +57,7 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-4xl md:text-6xl font-bold tracking-tighter mb-6"
+              className="text-4xl md:text-6xl font-bold tracking-tighter mb-6 text-foreground"
             >
               From{' '}
               <span className="underline decoration-4 underline-offset-8 decoration-primary/30">
@@ -237,19 +237,19 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <footer className="bg-primary text-primary-foreground py-12">
+        <div className="container mx-auto px-4">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-agent-600 rounded-lg flex items-center justify-center">
-                <BoltIcon className="w-5 h-5 text-white" />
+              <div className="w-6 h-6 bg-primary-foreground text-primary rounded-sm flex items-center justify-center">
+                <BoltIcon className="w-4 h-4" />
               </div>
-              <h4 className="text-xl font-bold">Agent Workshop</h4>
+              <h4 className="text-lg font-semibold">Agent Workshop</h4>
             </div>
-            <p className="text-gray-400 mb-6">
+            <p className="text-primary-foreground/80 mb-6">
               Democratizing AI agent development for everyone
             </p>
-            <p className="text-gray-500 text-sm">
+            <p className="text-primary-foreground/60 text-sm">
               © 2024 Agent Workshop. Made with ❤️ for the AI community.
             </p>
           </div>
