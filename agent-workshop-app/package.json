@@ -1,0 +1,58 @@
+{
+  "name": "agent-workshop-app",
+  "version": "0.1.0",
+  "description": "Build an Agent Workshop - From Idea to Agent in Minutes",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "@monaco-editor/react": "^4.6.0",
+    "clsx": "^2.0.0",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^10.16.16",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.293.0",
+    "monaco-editor": "^0.45.0",
+    "next": "14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-syntax-highlighter": "^15.6.6",
+    "tailwind-merge": "^2.0.0",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.0.4",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "ai-agents",
+    "claude",
+    "openai",
+    "agent-builder",
+    "no-code",
+    "automation"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
