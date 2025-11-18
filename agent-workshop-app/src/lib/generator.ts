@@ -179,7 +179,8 @@ function getDependencies(config: AgentConfig): Record<string, string> {
       baseDeps['@anthropic-ai/claude-agent-sdk'] = '^0.1.0'
       break
     case 'openai':
-      baseDeps['openai'] = '^4.0.0'
+      baseDeps['@openai/agents'] = '^0.1.0'
+      baseDeps['zod'] = '^3.0.0'
       break
     case 'anthropic-direct':
       baseDeps['@anthropic-ai/sdk'] = '^0.24.0'
@@ -450,7 +451,20 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   const hasCommands = enabledTools.some(t => t.category === 'command')
   const hasWeb = enabledTools.some(t => t.category === 'web')
   
-  let imports = [`import { query, type Query } from '@anthropic-ai/claude-agent-sdk';`]
+  let imports: string[] = []
+  
+  // Add SDK-specific imports
+  switch (config.sdkProvider) {
+    case 'claude':
+      imports.push(`import { query, type Query } from '@anthropic-ai/claude-agent-sdk';`)
+      break
+    case 'openai':
+      imports.push(`import { Agent, run, tool } from '@openai/agents';`)
+      break
+    case 'anthropic-direct':
+      imports.push(`import Anthropic from '@anthropic-ai/sdk';`)
+      break
+  }
   
   if (hasFileOps) {
     imports.push(`import { FileOperations } from './tools/file-operations.js';`)
@@ -462,6 +476,20 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
     imports.push(`import { WebTools } from './tools/web-tools.js';`)
   }
 
+  // Generate the agent class based on SDK provider
+  switch (config.sdkProvider) {
+    case 'claude':
+      return generateClaudeAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+    case 'openai':
+      return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+    case 'anthropic-direct':
+      return generateAnthropicDirectAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+    default:
+      throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
+  }
+}
+
+function generateClaudeAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
   return `${imports.join('\n')}
 
 export interface ${className}AgentConfig {
@@ -495,6 +523,394 @@ export class ${className}Agent {
         includePartialMessages: true
       }
     });
+  }
+
+  private buildSystemPrompt(): string {
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+${config.specialization || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }
+
+  clearHistory(): void {
+    this.conversationHistory = [];
+  }${hasFileOps ? `
+
+  // File operation helpers
+  async readFile(filePath: string): Promise<string> {
+    return this.fileOps.readFile(filePath);
+  }
+
+  async writeFile(filePath: string, content: string): Promise<void> {
+    return this.fileOps.writeFile(filePath, content);
+  }
+
+  async findFiles(pattern: string): Promise<string[]> {
+    return this.fileOps.findFiles(pattern);
+  }` : ''}${hasCommands ? `
+
+  // Command execution helpers
+  async runCommand(command: string): Promise<void> {
+    const result = await this.commandRunner.execute(command);
+    console.log(this.commandRunner.formatResult(result));
+  }` : ''}${hasWeb ? `
+
+  // Web tools helpers  
+  async searchWeb(query: string): Promise<string[]> {
+    return this.webTools.search(query);
+  }
+
+  async fetchUrl(url: string): Promise<string> {
+    return this.webTools.fetch(url);
+  }` : ''}
+}
+
+  private buildSystemPrompt(): string {
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+${config.specialization || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }
+
+  clearHistory(): void {
+    this.conversationHistory = [];
+  }${hasFileOps ? `
+
+  // File operation helpers
+  async readFile(filePath: string): Promise<string> {
+    return this.fileOps.readFile(filePath);
+  }
+
+  async writeFile(filePath: string, content: string): Promise<void> {
+    return this.fileOps.writeFile(filePath, content);
+  }
+
+  async findFiles(pattern: string): Promise<string[]> {
+    return this.fileOps.findFiles(pattern);
+  }` : ''}${hasCommands ? `
+
+  // Command execution helpers
+  async runCommand(command: string): Promise<void> {
+    const result = await this.commandRunner.execute(command);
+    console.log(this.commandRunner.formatResult(result));
+  }` : ''}${hasWeb ? `
+
+  // Web tools helpers  
+  async searchWeb(query: string): Promise<string[]> {
+    return this.webTools.search(query);
+  }
+
+  async fetchUrl(url: string): Promise<string> {
+    return this.webTools.fetch(url);
+  }` : ''}
+}`
+}
+
+function generateOpenAIAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
+  return `${imports.join('\n')}
+import { z } from 'zod';
+
+export interface ${className}AgentConfig {
+  verbose?: boolean;
+  apiKey?: string;
+  model?: string;
+}
+
+export class ${className}Agent {
+  private config: ${className}AgentConfig;
+  private agent: Agent;${hasFileOps ? `
+  private fileOps: FileOperations;` : ''}${hasCommands ? `
+  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
+  private webTools: WebTools;` : ''}
+
+  constructor(config: ${className}AgentConfig = {}) {
+    this.config = config;
+    
+    if (!config.apiKey && !process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is required. Set it via config.apiKey or OPENAI_API_KEY environment variable.');
+    }
+    
+    // Set API key in environment for OpenAI SDK
+    if (config.apiKey) {
+      process.env.OPENAI_API_KEY = config.apiKey;
+    }${hasFileOps ? `
+    this.fileOps = new FileOperations();` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner();` : ''}${hasWeb ? `
+    this.webTools = new WebTools();` : ''}
+
+    // Create OpenAI agent with tools
+    this.agent = new Agent({
+      name: '${config.name}',
+      instructions: this.buildInstructions(),
+      tools: this.createTools()
+    });
+  }
+
+  async *query(userQuery: string) {
+    try {
+      // Show thinking progress while waiting for OpenAI response
+      let thinkingDots = 1;
+      let isComplete = false;
+      
+      // Start the API call
+      const resultPromise = run(this.agent, userQuery);
+      
+      // Show thinking animation every 500ms until response arrives
+      const thinkingInterval = setInterval(() => {
+        if (!isComplete) {
+          const dots = '.'.repeat(thinkingDots);
+          // Note: This won't show in generator but CLI can handle thinking events
+          thinkingDots = (thinkingDots % 4) + 1; // Cycle 1->2->3->4->1
+        }
+      }, 500);
+
+      // Periodically yield thinking updates
+      const startTime = Date.now();
+      while (!isComplete) {
+        const elapsed = Date.now() - startTime;
+        
+        // Check if the API call is done
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 500));
+        const raceResult = await Promise.race([
+          resultPromise.then(result => ({ type: 'completed', result })),
+          timeoutPromise.then(() => ({ type: 'thinking' }))
+        ]);
+        
+        if (raceResult.type === 'completed') {
+          isComplete = true;
+          clearInterval(thinkingInterval);
+          
+          // Return the final result
+          yield {
+            type: 'result',
+            subtype: 'success',
+            result: (raceResult as any).result.finalOutput || 'No response generated.'
+          };
+          break;
+        } else {
+          // Show thinking progress
+          const dots = '.'.repeat(thinkingDots);
+          yield {
+            type: 'stream_event',
+            event: {
+              type: 'content_block_delta', 
+              delta: {
+                type: 'text_delta',
+                text: elapsed < 1000 ? \`thinking\${dots}\` : \`\\rthinking\${dots}\`
+              }
+            }
+          };
+          thinkingDots = (thinkingDots % 4) + 1;
+        }
+      }
+    } catch (error) {
+      console.error('OpenAI Agents API error:', error);
+      throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
+    }
+  }
+
+  private createTools(): any[] {
+    const tools: any[] = [];
+    
+    ${hasFileOps ? `
+    // File operations tools
+    const readFileTool = tool({
+      name: 'read_file',
+      description: 'Read contents of a file',
+      parameters: z.object({
+        filePath: z.string().describe('Path to the file to read')
+      }),
+      execute: async ({ filePath }: { filePath: string }) => {
+        return await this.fileOps.readFile(filePath);
+      }
+    });
+    tools.push(readFileTool);
+    
+    const writeFileTool = tool({
+      name: 'write_file', 
+      description: 'Write content to a file',
+      parameters: z.object({
+        filePath: z.string().describe('Path to the file to write'),
+        content: z.string().describe('Content to write to the file')
+      }),
+      execute: async ({ filePath, content }: { filePath: string; content: string }) => {
+        await this.fileOps.writeFile(filePath, content);
+        return \`File written successfully: \${filePath}\`;
+      }
+    });
+    tools.push(writeFileTool);
+
+    const findFilesTool = tool({
+      name: 'find_files',
+      description: 'Find files matching a pattern',
+      parameters: z.object({
+        pattern: z.string().describe('Glob pattern to match files')
+      }),
+      execute: async ({ pattern }: { pattern: string }) => {
+        const files = await this.fileOps.findFiles(pattern);
+        return files.join(', ');
+      }
+    });
+    tools.push(findFilesTool);` : ''}
+    
+    ${hasCommands ? `
+    // Command execution tool
+    const runCommandTool = tool({
+      name: 'run_command',
+      description: 'Execute a system command',
+      parameters: z.object({
+        command: z.string().describe('Command to execute')
+      }),
+      execute: async ({ command }: { command: string }) => {
+        const result = await this.commandRunner.execute(command);
+        return this.commandRunner.formatResult(result);
+      }
+    });
+    tools.push(runCommandTool);` : ''}
+    
+    ${hasWeb ? `
+    // Web tools
+    const fetchUrlTool = tool({
+      name: 'fetch_url',
+      description: 'Fetch content from a URL',
+      parameters: z.object({
+        url: z.string().describe('URL to fetch')
+      }),
+      execute: async ({ url }: { url: string }) => {
+        return await this.webTools.fetch(url);
+      }
+    });
+    tools.push(fetchUrlTool);
+
+    const fetchTextTool = tool({
+      name: 'fetch_text',
+      description: 'Fetch and extract text content from a URL',
+      parameters: z.object({
+        url: z.string().describe('URL to fetch and extract text from')
+      }),
+      execute: async ({ url }: { url: string }) => {
+        return await this.webTools.fetchText(url);
+      }
+    });
+    tools.push(fetchTextTool);` : ''}
+    
+    return tools;
+  }
+
+  private buildInstructions(): string {
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+${config.specialization || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks. Use the provided tools when needed to accomplish tasks effectively.\`;
+  }${hasFileOps ? `
+
+  // File operation helpers
+  async readFile(filePath: string): Promise<string> {
+    return this.fileOps.readFile(filePath);
+  }
+
+  async writeFile(filePath: string, content: string): Promise<void> {
+    return this.fileOps.writeFile(filePath, content);
+  }
+
+  async findFiles(pattern: string): Promise<string[]> {
+    return this.fileOps.findFiles(pattern);
+  }` : ''}${hasCommands ? `
+
+  // Command execution helpers
+  async runCommand(command: string): Promise<void> {
+    const result = await this.commandRunner.execute(command);
+    console.log(this.commandRunner.formatResult(result));
+  }` : ''}${hasWeb ? `
+
+  // Web tools helpers  
+  async searchWeb(query: string): Promise<string[]> {
+    return this.webTools.search(query);
+  }
+
+  async fetchUrl(url: string): Promise<string> {
+    return this.webTools.fetch(url);
+  }` : ''}
+}`
+}
+
+function generateAnthropicDirectAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
+  return `${imports.join('\n')}
+
+export interface ${className}AgentConfig {
+  verbose?: boolean;
+  apiKey?: string;
+  model?: string;
+}
+
+export class ${className}Agent {
+  private config: ${className}AgentConfig;
+  private anthropic: Anthropic;
+  private conversationHistory: string[] = [];${hasFileOps ? `
+  private fileOps: FileOperations;` : ''}${hasCommands ? `
+  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
+  private webTools: WebTools;` : ''}
+
+  constructor(config: ${className}AgentConfig = {}) {
+    this.config = config;
+    
+    if (!config.apiKey) {
+      throw new Error('Anthropic API key is required. Set it via config.apiKey or ANTHROPIC_API_KEY environment variable.');
+    }
+    
+    this.anthropic = new Anthropic({
+      apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY
+    });${hasFileOps ? `
+    this.fileOps = new FileOperations();` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner();` : ''}${hasWeb ? `
+    this.webTools = new WebTools();` : ''}
+  }
+
+  async query(userQuery: string): Promise<string> {
+    this.conversationHistory.push(\`User: \${userQuery}\`);
+
+    const systemPrompt = this.buildSystemPrompt();
+    const fullPrompt = \`\${systemPrompt}\\n\\nConversation History:\\n\${this.conversationHistory.join('\\n')}\\n\\nCurrent Query: \${userQuery}\`;
+    
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.config.model || '${config.model}',
+        max_tokens: ${config.maxTokens || 4096},
+        messages: [{
+          role: 'user',
+          content: fullPrompt
+        }]
+      });
+
+      const responseText = response.content[0]?.type === 'text' ? response.content[0].text : 'No response generated.';
+      this.conversationHistory.push(\`Assistant: \${responseText}\`);
+      
+      return responseText;
+    } catch (error) {
+      console.error('Anthropic API error:', error);
+      throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
+    }
   }
 
   private buildSystemPrompt(): string {

@@ -29,9 +29,9 @@ const sdkProviders = [
       'Professional agent architecture'
     ],
     models: [
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Latest model, best for coding' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most capable, higher cost' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fastest, most economical' }
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Latest)', description: 'Best for coding and complex tasks' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fastest, most economical' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most capable for complex reasoning' }
     ],
     recommended: true,
     setupComplexity: 'Easy',
@@ -39,20 +39,21 @@ const sdkProviders = [
   },
   {
     id: 'openai' as SDKProvider,
-    name: 'OpenAI',
-    description: 'OpenAI GPT models with function calling capabilities for custom tool integration.',
+    name: 'OpenAI SDK',
+    description: 'OpenAI GPT models with function calling capabilities and assistants API for powerful agent development.',
     icon: '🤖',
     gradient: 'from-green-500 to-emerald-600',
     pros: [
+      'Assistants API for stateful conversations',
       'Advanced function calling system',
-      'Large ecosystem and community',
-      'Multiple model options',
-      'Well-documented APIs'
+      'Code interpreter and file handling',
+      'Large ecosystem and community'
     ],
     models: [
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Latest GPT-4, faster and cheaper' },
-      { id: 'gpt-4', name: 'GPT-4', description: 'Most capable OpenAI model' },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' }
+      { id: 'gpt-4o', name: 'GPT-4o', description: 'Latest multimodal model, best overall' },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Smaller, faster, cost-effective' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Fast and capable' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Most economical option' }
     ],
     recommended: false,
     setupComplexity: 'Medium',
@@ -71,9 +72,9 @@ const sdkProviders = [
       'Advanced configuration options'
     ],
     models: [
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Latest model' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most capable' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fastest' }
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Latest)', description: 'Latest model with enhanced capabilities' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fastest response time' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most capable for complex tasks' }
     ],
     recommended: false,
     setupComplexity: 'Advanced', 
