@@ -1,6 +1,14 @@
 import { AgentConfig, GeneratedProject, GeneratedFile, ProjectMetadata } from '@/types/agent'
 import { AGENT_TEMPLATES } from '@/types/agent'
 
+// Helper function to sanitize names for use in TypeScript class names and identifiers
+function sanitizeClassName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9\s]/g, '') // Remove all special characters except spaces
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/^[0-9]/, '_$&') // Prefix with underscore if starts with number
+}
+
 export async function generateAgentProject(config: AgentConfig): Promise<GeneratedProject> {
   const template = AGENT_TEMPLATES.find(t => t.id === config.templateId)
   const enabledTools = config.tools.filter(t => t.enabled)
@@ -45,6 +53,14 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     content: generateConfig(config),
     type: 'typescript',
     template: 'config.ts'
+  })
+
+  // Generate permission management
+  files.push({
+    path: 'src/permissions.ts',
+    content: generatePermissions(config),
+    type: 'typescript',
+    template: 'permissions.ts'
   })
   
   // Generate tool implementations based on enabled tools
@@ -250,15 +266,16 @@ function generateTsConfig(): string {
 function generateCLI(config: AgentConfig, enabledTools: AgentConfig['tools']): string {
   const hasFileOps = enabledTools.some(t => t.category === 'file')
   const hasCommands = enabledTools.some(t => t.category === 'command')
-  
+
   return `#!/usr/bin/env node
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import { ${config.name.replace(/\s+/g, '')}Agent } from './agent.js';
+import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
+import { PermissionManager } from './permissions.js';
 
 const program = new Command();
 
@@ -321,9 +338,11 @@ program
         process.exit(1);
       }
 
-      const agent = new ${config.name.replace(/\s+/g, '')}Agent({
+      const permissionManager = new PermissionManager();
+      const agent = new ${sanitizeClassName(config.name)}Agent({
         verbose: options?.verbose || false,
-        apiKey: config.apiKey
+        apiKey: config.apiKey,
+        permissionManager
       });
 
       console.log(chalk.cyan.bold('\\n🤖 ${config.name}'));
@@ -342,18 +361,17 @@ program
 
 async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
   const spinner = ora('Processing...').start();
-  
+
   try {
     const response = agent.query(query);
     spinner.stop();
-    
+
     console.log(chalk.yellow('Query:'), query);
     console.log(chalk.green('Response:') + '\\n');
-    
+
     for await (const message of response) {
-      if (message.type === 'result' && message.subtype === 'success') {
-        process.stdout.write(message.result || '');
-      } else if (message.type === 'stream_event') {
+      // Only show streaming deltas, not the final result (which duplicates the stream)
+      if (message.type === 'stream_event') {
         if (message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
           process.stdout.write(message.event.delta.text || '');
         }
@@ -361,7 +379,7 @@ async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
         console.log(chalk.blue(\`\\n[\${message.type}]\`));
       }
     }
-    
+
     console.log('\\n');
   } catch (error) {
     spinner.fail('Failed to process query');
@@ -403,17 +421,16 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
       }
 
       const spinner = ora('Processing...').start();
-      
+
       try {
         const response = agent.query(input);
         spinner.stop();
-        
+
         console.log();
-        
+
         for await (const message of response) {
-          if (message.type === 'result' && message.subtype === 'success') {
-            process.stdout.write(message.result || '');
-          } else if (message.type === 'stream_event') {
+          // Only show streaming deltas, not the final result (which duplicates the stream)
+          if (message.type === 'stream_event') {
             if (message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
               process.stdout.write(message.event.delta.text || '');
             }
@@ -421,7 +438,7 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
             console.log(chalk.blue(\`\\n[\${message.type}]\`));
           }
         }
-        
+
         console.log('\\n');
       } catch (error) {
         spinner.fail('Failed to process query');
@@ -446,7 +463,7 @@ program.parse();`
 }
 
 function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], template: any): string {
-  const className = config.name.replace(/\s+/g, '')
+  const className = sanitizeClassName(config.name)
   const hasFileOps = enabledTools.some(t => t.category === 'file')
   const hasCommands = enabledTools.some(t => t.category === 'command')
   const hasWeb = enabledTools.some(t => t.category === 'web')
@@ -456,7 +473,8 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   // Add SDK-specific imports
   switch (config.sdkProvider) {
     case 'claude':
-      imports.push(`import { query, type Query } from '@anthropic-ai/claude-agent-sdk';`)
+      imports.push(`import { query, tool, createSdkMcpServer, type Query } from '@anthropic-ai/claude-agent-sdk';`)
+      imports.push(`import { z } from 'zod';`)
       break
     case 'openai':
       imports.push(`import { Agent, run, tool } from '@openai/agents';`)
@@ -491,37 +509,204 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
 
 function generateClaudeAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
   return `${imports.join('\n')}
+import { PermissionManager } from './permissions.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
   apiKey?: string;
+  permissionManager?: PermissionManager;
 }
 
 export class ${className}Agent {
   private config: ${className}AgentConfig;
-  private conversationHistory: string[] = [];${hasFileOps ? `
+  private permissionManager: PermissionManager;${hasFileOps ? `
   private fileOps: FileOperations;` : ''}${hasCommands ? `
   private commandRunner: CommandRunner;` : ''}${hasWeb ? `
   private webTools: WebTools;` : ''}
+  private customServer: ReturnType<typeof createSdkMcpServer>;
+  private sessionId?: string;
 
   constructor(config: ${className}AgentConfig = {}) {
-    this.config = config;${hasFileOps ? `
-    this.fileOps = new FileOperations();` : ''}${hasCommands ? `
-    this.commandRunner = new CommandRunner();` : ''}${hasWeb ? `
-    this.webTools = new WebTools();` : ''}
+    this.config = config;
+
+    if (config.apiKey) {
+      process.env.ANTHROPIC_API_KEY = config.apiKey;
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('Anthropic API key is required. Set it via config.apiKey or ANTHROPIC_API_KEY environment variable.');
+    }
+
+    this.permissionManager = config.permissionManager || new PermissionManager();${hasFileOps ? `
+    this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
+    this.webTools = new WebTools(this.permissionManager);` : ''}
+
+    // Create SDK MCP server with custom tools
+    this.customServer = this.createToolServer();
   }
 
-  query(userQuery: string): Query {
-    this.conversationHistory.push(\`User: \${userQuery}\`);
-
+  async *query(userQuery: string) {
     const systemPrompt = this.buildSystemPrompt();
-    const fullPrompt = \`\${systemPrompt}\\n\\nConversation History:\\n\${this.conversationHistory.join('\\n')}\\n\\nCurrent Query: \${userQuery}\`;
 
-    return query({
-      prompt: fullPrompt,
-      options: {
-        includePartialMessages: true
+    const options: any = {
+      systemPrompt,
+      mcpServers: {
+        'custom-tools': this.customServer
+      },
+      canUseTool: async (toolName: string, input: any) => {
+        // Permission check happens in tool execution
+        return { behavior: 'allow', updatedInput: input };
+      },
+      includePartialMessages: true
+    };
+
+    // Resume previous session if we have one
+    if (this.sessionId) {
+      options.resume = this.sessionId;
+    }
+
+    const queryResult = query({
+      prompt: userQuery,
+      options
+    });
+
+    // Stream messages and capture session ID
+    for await (const message of queryResult) {
+      // Capture session ID from system messages for future queries
+      if (message.type === 'system' && (message as any).sessionId) {
+        this.sessionId = (message as any).sessionId;
       }
+
+      yield message;
+    }
+  }
+
+  private createToolServer() {
+    const tools: any[] = [];${hasFileOps ? `
+
+    // File operation tools
+    tools.push(
+      tool(
+        'read_file',
+        'Read the contents of a file',
+        {
+          filePath: z.string().describe('Path to the file to read')
+        },
+        async (args) => {
+          const content = await this.fileOps.readFile(args.filePath);
+          return {
+            content: [{
+              type: 'text',
+              text: content
+            }]
+          };
+        }
+      )
+    );
+
+    tools.push(
+      tool(
+        'write_file',
+        'Write content to a file (creates or overwrites)',
+        {
+          filePath: z.string().describe('Path to the file to write'),
+          content: z.string().describe('Content to write to the file')
+        },
+        async (args) => {
+          await this.fileOps.writeFile(args.filePath, args.content);
+          return {
+            content: [{
+              type: 'text',
+              text: \`Successfully wrote to \${args.filePath}\`
+            }]
+          };
+        }
+      )
+    );
+
+    tools.push(
+      tool(
+        'find_files',
+        'Find files matching a glob pattern',
+        {
+          pattern: z.string().describe('Glob pattern to match files (e.g., "**/*.ts")')
+        },
+        async (args) => {
+          const files = await this.fileOps.findFiles(args.pattern);
+          return {
+            content: [{
+              type: 'text',
+              text: files.join('\\n')
+            }]
+          };
+        }
+      )
+    );` : ''}${hasCommands ? `
+
+    // Command execution tools
+    tools.push(
+      tool(
+        'run_command',
+        'Execute a shell command',
+        {
+          command: z.string().describe('Command to execute')
+        },
+        async (args) => {
+          const result = await this.commandRunner.execute(args.command);
+          return {
+            content: [{
+              type: 'text',
+              text: this.commandRunner.formatResult(result)
+            }]
+          };
+        }
+      )
+    );` : ''}${hasWeb ? `
+
+    // Web tools
+    tools.push(
+      tool(
+        'web_search',
+        'Search the web for information',
+        {
+          query: z.string().describe('Search query')
+        },
+        async (args) => {
+          const results = await this.webTools.search(args.query);
+          return {
+            content: [{
+              type: 'text',
+              text: results.join('\\n')
+            }]
+          };
+        }
+      )
+    );
+
+    tools.push(
+      tool(
+        'web_fetch',
+        'Fetch and analyze a web page',
+        {
+          url: z.string().describe('URL to fetch')
+        },
+        async (args) => {
+          const content = await this.webTools.fetch(args.url);
+          return {
+            content: [{
+              type: 'text',
+              text: content
+            }]
+          };
+        }
+      )
+    );` : ''}
+
+    return createSdkMcpServer({
+      name: 'custom-tools',
+      version: '1.0.0',
+      tools
     });
   }
 
@@ -537,57 +722,6 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 ${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
-  }
-
-  clearHistory(): void {
-    this.conversationHistory = [];
-  }${hasFileOps ? `
-
-  // File operation helpers
-  async readFile(filePath: string): Promise<string> {
-    return this.fileOps.readFile(filePath);
-  }
-
-  async writeFile(filePath: string, content: string): Promise<void> {
-    return this.fileOps.writeFile(filePath, content);
-  }
-
-  async findFiles(pattern: string): Promise<string[]> {
-    return this.fileOps.findFiles(pattern);
-  }` : ''}${hasCommands ? `
-
-  // Command execution helpers
-  async runCommand(command: string): Promise<void> {
-    const result = await this.commandRunner.execute(command);
-    console.log(this.commandRunner.formatResult(result));
-  }` : ''}${hasWeb ? `
-
-  // Web tools helpers  
-  async searchWeb(query: string): Promise<string[]> {
-    return this.webTools.search(query);
-  }
-
-  async fetchUrl(url: string): Promise<string> {
-    return this.webTools.fetch(url);
-  }` : ''}
-}
-
-  private buildSystemPrompt(): string {
-    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
-
-${config.specialization || template?.documentation || ''}
-
-## Your Capabilities:
-${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
-
-## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
-
-Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
-  }
-
-  clearHistory(): void {
-    this.conversationHistory = [];
   }${hasFileOps ? `
 
   // File operation helpers
@@ -623,34 +757,38 @@ Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
 function generateOpenAIAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
   return `${imports.join('\n')}
 import { z } from 'zod';
+import { PermissionManager } from './permissions.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
   apiKey?: string;
   model?: string;
+  permissionManager?: PermissionManager;
 }
 
 export class ${className}Agent {
   private config: ${className}AgentConfig;
-  private agent: Agent;${hasFileOps ? `
+  private agent: Agent;
+  private permissionManager: PermissionManager;${hasFileOps ? `
   private fileOps: FileOperations;` : ''}${hasCommands ? `
   private commandRunner: CommandRunner;` : ''}${hasWeb ? `
   private webTools: WebTools;` : ''}
 
   constructor(config: ${className}AgentConfig = {}) {
     this.config = config;
-    
+    this.permissionManager = config.permissionManager || new PermissionManager();
+
     if (!config.apiKey && !process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is required. Set it via config.apiKey or OPENAI_API_KEY environment variable.');
     }
-    
+
     // Set API key in environment for OpenAI SDK
     if (config.apiKey) {
       process.env.OPENAI_API_KEY = config.apiKey;
     }${hasFileOps ? `
-    this.fileOps = new FileOperations();` : ''}${hasCommands ? `
-    this.commandRunner = new CommandRunner();` : ''}${hasWeb ? `
-    this.webTools = new WebTools();` : ''}
+    this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
+    this.webTools = new WebTools(this.permissionManager);` : ''}
 
     // Create OpenAI agent with tools
     this.agent = new Agent({
@@ -1018,6 +1156,137 @@ export class ConfigManager {
 }`
 }
 
+function generatePermissions(config: AgentConfig): string {
+  return `import inquirer from 'inquirer';
+import chalk from 'chalk';
+
+export type PermissionAction = 'write_file' | 'run_command' | 'delete_file' | 'modify_file' | 'network_request';
+
+export interface PermissionRequest {
+  action: PermissionAction;
+  resource: string;
+  details?: string;
+}
+
+export interface PermissionResponse {
+  allowed: boolean;
+  remember?: boolean;
+}
+
+export class PermissionManager {
+  private allowedActions: Set<string> = new Set();
+  private deniedActions: Set<string> = new Set();
+  private alwaysAllow: Set<PermissionAction> = new Set();
+  private alwaysDeny: Set<PermissionAction> = new Set();
+
+  async requestPermission(request: PermissionRequest): Promise<PermissionResponse> {
+    const actionKey = \`\${request.action}:\${request.resource}\`;
+
+    // Check if we have a permanent decision for this specific action
+    if (this.allowedActions.has(actionKey)) {
+      return { allowed: true, remember: true };
+    }
+
+    if (this.deniedActions.has(actionKey)) {
+      return { allowed: false, remember: true };
+    }
+
+    // Check if we always allow/deny this action type
+    if (this.alwaysAllow.has(request.action)) {
+      return { allowed: true, remember: true };
+    }
+
+    if (this.alwaysDeny.has(request.action)) {
+      return { allowed: false, remember: true };
+    }
+
+    // Ask user for permission
+    return await this.promptUser(request, actionKey);
+  }
+
+  private async promptUser(request: PermissionRequest, actionKey: string): Promise<PermissionResponse> {
+    console.log(chalk.yellow('\\n⚠️  Permission Required'));
+    console.log(chalk.white(\`Action: \${this.formatActionName(request.action)}\`));
+    console.log(chalk.white(\`Resource: \${request.resource}\`));
+    if (request.details) {
+      console.log(chalk.gray(\`Details: \${request.details}\`));
+    }
+
+    const { decision } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'decision',
+        message: 'Do you want to allow this action?',
+        choices: [
+          { name: 'Allow once', value: 'allow_once' },
+          { name: 'Allow always for this resource', value: 'allow_resource' },
+          { name: \`Always allow \${this.formatActionName(request.action)}\`, value: 'allow_action' },
+          { name: 'Deny once', value: 'deny_once' },
+          { name: 'Deny always for this resource', value: 'deny_resource' },
+          { name: \`Always deny \${this.formatActionName(request.action)}\`, value: 'deny_action' },
+        ],
+        default: 'allow_once'
+      }
+    ]);
+
+    switch (decision) {
+      case 'allow_once':
+        return { allowed: true, remember: false };
+
+      case 'allow_resource':
+        this.allowedActions.add(actionKey);
+        return { allowed: true, remember: true };
+
+      case 'allow_action':
+        this.alwaysAllow.add(request.action);
+        return { allowed: true, remember: true };
+
+      case 'deny_once':
+        return { allowed: false, remember: false };
+
+      case 'deny_resource':
+        this.deniedActions.add(actionKey);
+        return { allowed: false, remember: true };
+
+      case 'deny_action':
+        this.alwaysDeny.add(request.action);
+        return { allowed: false, remember: true };
+
+      default:
+        return { allowed: false, remember: false };
+    }
+  }
+
+  private formatActionName(action: PermissionAction): string {
+    switch (action) {
+      case 'write_file':
+        return 'file writing';
+      case 'run_command':
+        return 'command execution';
+      case 'delete_file':
+        return 'file deletion';
+      case 'modify_file':
+        return 'file modification';
+      case 'network_request':
+        return 'network requests';
+      default:
+        return action;
+    }
+  }
+
+  isHighRisk(action: PermissionAction): boolean {
+    return ['run_command', 'delete_file'].includes(action);
+  }
+
+  reset(): void {
+    this.allowedActions.clear();
+    this.deniedActions.clear();
+    this.alwaysAllow.clear();
+    this.alwaysDeny.clear();
+  }
+}`
+}
+
 function generateToolImplementation(tool: any, config: AgentConfig): GeneratedFile | null {
   switch (tool.category) {
     case 'file':
@@ -1050,8 +1319,15 @@ function generateFileOperationsImpl(): string {
   return `import { readFile, writeFile, access, readdir, stat } from 'fs/promises'
 import { join, resolve } from 'path'
 import { glob } from 'glob'
+import { PermissionManager } from '../permissions.js'
 
 export class FileOperations {
+  private permissionManager: PermissionManager;
+
+  constructor(permissionManager: PermissionManager) {
+    this.permissionManager = permissionManager;
+  }
+
   async readFile(filePath: string): Promise<string> {
     try {
       const absolutePath = resolve(filePath)
@@ -1062,6 +1338,17 @@ export class FileOperations {
   }
 
   async writeFile(filePath: string, content: string): Promise<void> {
+    // Request permission before writing
+    const permission = await this.permissionManager.requestPermission({
+      action: 'write_file',
+      resource: filePath,
+      details: \`Writing \${content.length} characters\`
+    });
+
+    if (!permission.allowed) {
+      throw new Error(\`Permission denied: Cannot write to \${filePath}\`);
+    }
+
     try {
       const absolutePath = resolve(filePath)
       await writeFile(absolutePath, content, 'utf-8')
@@ -1119,6 +1406,7 @@ export class FileOperations {
 function generateCommandRunnerImpl(): string {
   return `import { spawn } from 'child_process'
 import { promisify } from 'util'
+import { PermissionManager } from '../permissions.js'
 
 export interface CommandResult {
   stdout: string
@@ -1128,7 +1416,24 @@ export interface CommandResult {
 }
 
 export class CommandRunner {
+  private permissionManager: PermissionManager;
+
+  constructor(permissionManager: PermissionManager) {
+    this.permissionManager = permissionManager;
+  }
+
   async execute(command: string, options?: { cwd?: string; timeout?: number }): Promise<CommandResult> {
+    // Request permission before executing command (HIGH RISK)
+    const permission = await this.permissionManager.requestPermission({
+      action: 'run_command',
+      resource: command,
+      details: \`Executing command in \${options?.cwd || 'current directory'}\`
+    });
+
+    if (!permission.allowed) {
+      throw new Error(\`Permission denied: Cannot execute command "\${command}"\`);
+    }
+
     return new Promise((resolve, reject) => {
       const [cmd, ...args] = command.split(' ')
       const child = spawn(cmd, args, {
@@ -1195,6 +1500,7 @@ export class CommandRunner {
 function generateWebToolsImpl(): string {
   return `import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { PermissionManager } from '../permissions.js'
 
 export interface SearchResult {
   title: string
@@ -1204,8 +1510,24 @@ export interface SearchResult {
 
 export class WebTools {
   private readonly userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+  private permissionManager: PermissionManager;
+
+  constructor(permissionManager: PermissionManager) {
+    this.permissionManager = permissionManager;
+  }
 
   async fetch(url: string): Promise<string> {
+    // Request permission before making network request
+    const permission = await this.permissionManager.requestPermission({
+      action: 'network_request',
+      resource: url,
+      details: 'Fetching web page content'
+    });
+
+    if (!permission.allowed) {
+      throw new Error(\`Permission denied: Cannot fetch \${url}\`);
+    }
+
     try {
       const response = await axios.get(url, {
         headers: {
@@ -1294,13 +1616,42 @@ export class WebTools {
 }
 
 function generateReadme(config: AgentConfig, template: any, enabledTools: any[]): string {
+  const hasHighRiskTools = enabledTools.some(t => ['run-command', 'write-file'].includes(t.id))
+
   return `# ${config.name}
 
 ${config.description}
 
+## ⚠️ Security Warning
+
+**IMPORTANT: This agent has the ability to execute code and perform actions on your system.**
+
+${hasHighRiskTools ? `This agent is configured with HIGH-RISK tools that can:
+- Execute system commands
+- Modify files on your filesystem
+- Make network requests
+
+**Best Practices for Safe Usage:**
+- ✅ **Run in a VM or sandbox environment** when testing
+- ✅ **Review all permissions** before approving actions
+- ✅ **Never run with elevated privileges** unless absolutely necessary
+- ✅ **Limit file system access** to specific directories
+- ✅ **Monitor network activity** when web tools are enabled
+- ❌ **Do NOT run untested agents** on production systems
+- ❌ **Do NOT grant blanket permissions** without understanding the implications
+
+This agent includes a built-in **permission system** that will ask for approval before executing high-risk operations. Always review these prompts carefully.
+` : `This agent has moderate-risk capabilities. Always review and approve operations before execution.`}
+
 ## Features
 
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+## Prerequisites
+
+- Node.js >= 18.0.0
+- npm or yarn
+- ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : 'API key'}
 
 ## Installation
 
@@ -1339,13 +1690,75 @@ ${config.projectName} "Your question here"
 ${config.projectName} --help
 \`\`\`
 
+## Customization
+
+### Modifying the System Prompt
+
+The agent's behavior is controlled by the system prompt in \`src/agent.ts\`. To customize:
+
+1. Open \`src/agent.ts\`
+2. Find the \`buildSystemPrompt()\` method (or \`buildInstructions()\` for OpenAI)
+3. Edit the template string to modify:
+   - Agent personality and tone
+   - Domain-specific knowledge
+   - Task priorities and guidelines
+   - Tool usage preferences
+
+Example:
+\`\`\`typescript
+private buildSystemPrompt(): string {
+  return \`You are ${config.name}, a specialized AI assistant.
+
+  YOUR CUSTOM INSTRUCTIONS HERE
+
+  Be helpful and thorough in your responses.\`;
+}
+\`\`\`
+
+### Adding Custom Tools
+
+To add new tools:
+
+1. Create a new file in \`src/tools/my-custom-tool.ts\`
+2. Implement your tool class with permission checks
+3. Import and initialize it in \`src/agent.ts\`
+4. Rebuild: \`npm run build\`
+
+**Tip:** Claude Code is excellent at helping you customize your agent! Just ask it to help modify the prompts or add new capabilities.
+
+### Adjusting Permission Settings
+
+Edit \`src/permissions.ts\` to:
+- Change default permission behaviors
+- Add/remove permission types
+- Customize permission prompt messages
+- Implement persistent permission storage
+
 ## Development
 
 \`\`\`bash
-npm run dev    # Watch mode
-npm run build  # Build project
-npm run start  # Run built version
+npm run dev    # Watch mode for development
+npm run build  # Build TypeScript to JavaScript
+npm run start  # Run the built CLI
+npm test       # Show help (basic test)
 \`\`\`
+
+## Troubleshooting
+
+### API Key Issues
+- Verify your API key is correct
+- Check that environment variables are set
+- Run \`${config.projectName} config --show\` to verify configuration
+
+### Permission Errors
+- Review file/directory permissions
+- Ensure the agent has access to required resources
+- Check that you're approving permission requests
+
+### Build Errors
+- Clear dist folder: \`npm run clean\`
+- Reinstall dependencies: \`rm -rf node_modules && npm install\`
+- Check Node.js version: \`node --version\` (should be ≥18.0.0)
 
 ## Generated with Agent Workshop
 

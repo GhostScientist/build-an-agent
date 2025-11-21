@@ -2,11 +2,10 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  RocketLaunchIcon, 
-  CogIcon, 
+import {
+  RocketLaunchIcon,
+  CogIcon,
   CodeBracketIcon,
-  BoltIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline'
 import { AgentBuilder } from '@/components/wizard/AgentBuilder'
@@ -25,10 +24,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-14">
             <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
-                <BoltIcon className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <h1 className="text-lg font-semibold tracking-tight">Agent Workshop</h1>
+              <h1 className="text-lg font-semibold tracking-tight">Build-An-Agent Workshop</h1>
             </div>
             
             <div className="flex items-center space-x-6">
@@ -53,29 +49,44 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-background">
         <div className="container mx-auto px-4 py-32">
           <div className="text-center">
-            <motion.h2 
+            <motion.h2
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
               className="text-4xl md:text-6xl font-bold tracking-tighter mb-6 text-foreground"
             >
-              From{' '}
+              Idea to{' '}
               <span className="underline decoration-4 underline-offset-8 decoration-primary/30">
-                Idea to Agent
+                AI Agent CLI
               </span>
-              <br />
-              in Minutes
+              {' '}in Minutes
             </motion.h2>
-            
-            <motion.p 
+
+            <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto"
+              className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
-              Transform your ideas into powerful AI agents. Choose your domain, configure tools, 
-              and download a complete agent project ready for deployment.
+              For researchers, developers, and anyone who wants a specialized AI assistant.
+              Generate your own complete TypeScript CLI project <br /> <span className="font-semibold text-foreground">Free!</span>.
             </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.15 }}
+              className="flex flex-wrap gap-3 justify-center mb-8 max-w-3xl mx-auto"
+            >
+              <div className="badge-outline px-4 py-2 text-sm font-medium bg-orange-500/5 border-orange-500/20 text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                <img src="/Anthropic icon - Slate.svg" alt="Anthropic" className="w-4 h-4" />
+                Anthropic Claude Agents SDK
+              </div>
+              <div className="badge-outline px-4 py-2 text-sm font-medium bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                <img src="/OpenAI-black-monoblossom.svg" alt="OpenAI" className="w-4 h-4" />
+                OpenAI Agents SDK
+              </div>
+            </motion.div>
             
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -102,20 +113,34 @@ export default function HomePage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
               className="mt-16 relative"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background z-10"></div>
-              <div className="bg-muted rounded-lg border p-8 font-mono text-sm text-left max-w-2xl mx-auto overflow-hidden">
+              <div className="bg-muted rounded-lg border p-6 font-mono text-xs md:text-sm text-left max-w-3xl mx-auto">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-3 h-3 rounded-full bg-destructive"></div>
                   <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-muted-foreground ml-2">terminal</span>
+                  <span className="text-muted-foreground ml-2">Generated Agent CLI</span>
                 </div>
-                <div className="text-muted-foreground">
-                  <span className="text-primary">$ </span>
-                  <span className="animate-pulse">npm install && npm start</span>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-green-500">$</span>
+                    <span className="text-foreground"> my-agent</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    🤖 Code Review Agent
+                  </div>
+                  <div className="text-muted-foreground">
+                    Automated code quality and security analysis
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-blue-400">my-agent&gt;</span>
+                    <span className="text-foreground"> Review the auth module for security issues</span>
+                  </div>
+                  <div className="text-muted-foreground mt-2">
+                    <span className="animate-pulse">▋</span> Analyzing authentication implementation...
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -128,11 +153,11 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h3 className="text-3xl font-bold tracking-tight mb-4">
-              Build Professional AI Agents
+              Built on Official SDKs
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              No coding required. Choose from expert templates, customize with powerful tools, 
-              and deploy anywhere.
+              True integration with Claude Agent SDK and OpenAI Agents API—complete with
+              MCP tools, streaming, session management, and built-in security.
             </p>
           </div>
           
@@ -221,16 +246,16 @@ export default function HomePage() {
             className="text-center"
           >
             <h3 className="text-3xl font-bold tracking-tight mb-4">
-              Ready to Build Your AI Agent?
+              Ready to Build Your Agent?
             </h3>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Join thousands of developers and businesses creating specialized AI assistants.
+              Choose your SDK, pick a template, select tools—preview the generated code and download your working CLI in under a minute.
             </p>
-            <button 
+            <button
               onClick={() => setShowBuilder(true)}
               className="btn-default px-8 py-3 text-base font-semibold inline-flex items-center space-x-2"
             >
-              <span>Start Building Now</span>
+              <span>Start Building</span>
               <ArrowRightIcon className="w-4 h-4" />
             </button>
           </motion.div>
@@ -242,16 +267,13 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-6 h-6 bg-primary-foreground text-primary rounded-sm flex items-center justify-center">
-                <BoltIcon className="w-4 h-4" />
-              </div>
-              <h4 className="text-lg font-semibold">Agent Workshop</h4>
+              <h4 className="text-lg font-semibold">Build-An-Agent Workshop</h4>
             </div>
             <p className="text-primary-foreground/80 mb-6">
-              Democratizing AI agent development for everyone
+              Free, open-source tool for generating AI agent CLIs
             </p>
             <p className="text-primary-foreground/60 text-sm">
-              © 2024 Agent Workshop. Made with ❤️ for the AI community.
+              © 2024 Build-An-Agent Workshop. Made with ❤️ for the AI community.
             </p>
           </div>
         </div>
@@ -262,42 +284,42 @@ export default function HomePage() {
 
 const features = [
   {
-    title: 'Expert Templates',
-    description: 'Choose from professionally designed agent templates for development, business, and creative use cases.',
+    title: 'SDK-Native Implementation',
+    description: 'Built on Claude Agent SDK and OpenAI Agents API. Get proper MCP tool integration, session management, streaming, and automatic context handling—not a wrapper, but true SDK integration.',
     icon: CodeBracketIcon,
   },
   {
-    title: 'Multi-SDK Support',
-    description: 'Support for Claude, OpenAI, and other popular AI providers. Switch between them seamlessly.',
+    title: 'Production-Ready Security',
+    description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve actions before they execute.',
     icon: CogIcon,
   },
   {
-    title: 'One-Click Deploy',
-    description: 'Download complete projects or deploy directly to your favorite hosting platform.',
+    title: 'Instant Customization',
+    description: 'Download complete TypeScript source code. Modify system prompts, add custom tools, adjust behaviors, or extend with MCP servers. It\'s your codebase from day one.',
     icon: RocketLaunchIcon,
   },
 ]
 
 const agentTemplates = [
   {
-    name: 'Development Agent',
-    description: 'Full-stack development assistant with file operations, build tools, and code analysis.',
-    tools: ['File Ops', 'Git', 'Build Tools', 'Code Analysis'],
+    name: 'Legacy Code Modernization',
+    description: 'Analyze legacy codebases, identify technical debt, and create modernization strategies.',
+    tools: ['Code Analysis', 'Migration Planning', 'Security Audit', 'Architecture Review'],
     icon: CodeBracketIcon,
-    gradient: 'bg-gradient-to-br from-blue-500 to-cyan-600',
+    gradient: 'bg-gradient-to-br from-indigo-500 to-blue-600',
   },
   {
-    name: 'Business Agent', 
-    description: 'Document analysis, workflow automation, and business process optimization.',
-    tools: ['Document AI', 'Workflow', 'Analytics', 'Integration'],
+    name: 'Document Processing',
+    description: 'Extract, analyze, and transform business documents at scale with automation.',
+    tools: ['PDF Extraction', 'Classification', 'Data Validation', 'Reporting'],
     icon: CogIcon,
-    gradient: 'bg-gradient-to-br from-green-500 to-emerald-600',
+    gradient: 'bg-gradient-to-br from-emerald-500 to-green-600',
   },
   {
-    name: 'Creative Agent',
-    description: 'Content creation, marketing copy, social media, and creative writing assistance.',
-    tools: ['Content Gen', 'SEO', 'Social Media', 'Writing'],
+    name: 'Social Media Manager',
+    description: 'Create, plan, and optimize social media content across all major platforms.',
+    tools: ['Content Creation', 'Trend Analysis', 'Scheduling', 'Multi-platform'],
     icon: RocketLaunchIcon,
-    gradient: 'bg-gradient-to-br from-purple-500 to-pink-600',
+    gradient: 'bg-gradient-to-br from-pink-500 to-rose-600',
   },
 ]

@@ -109,6 +109,24 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
 
   return (
     <div className="space-y-8">
+      {/* Security Warning */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg"
+      >
+        <div className="flex items-start space-x-3">
+          <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h5 className="font-semibold text-yellow-900 mb-1">Security Best Practices</h5>
+            <p className="text-sm text-yellow-800">
+              Generated agents include a <strong>permission system</strong> that prompts for approval before executing high-risk operations.
+              For testing, always run agents in a VM or sandbox environment. Never grant blanket permissions to tools you don't fully understand.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Permission Level */}
       <div>
         <div className="text-center mb-6">
