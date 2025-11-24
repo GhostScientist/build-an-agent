@@ -32,6 +32,20 @@ const domains = [
     tools: ['File Operations', 'Git Integration', 'Build Tools', 'Code Analysis', 'Testing Frameworks']
   },
   {
+    id: 'knowledge' as AgentDomain,
+    name: 'Knowledge & Research',
+    description: 'Evidence-backed research, literature review, and scientific reporting.',
+    icon: ChartBarIcon,
+    gradient: 'from-amber-500 to-orange-600',
+    examples: [
+      'Systematic literature reviews with citations',
+      'Scientific notebook and experiment logging',
+      'Competitive intelligence and market briefs',
+      'Policy/Grant analysis with source tracking'
+    ],
+    tools: ['Web Fetch/Search', 'Document Parsing', 'Citation Tracking', 'API Integrations', 'Reporting']
+  },
+  {
     id: 'business' as AgentDomain,
     name: 'Business Process',
     description: 'Document analysis, workflow automation, reporting, and business intelligence.',

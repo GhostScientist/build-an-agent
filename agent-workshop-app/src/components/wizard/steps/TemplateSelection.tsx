@@ -6,9 +6,10 @@ import {
   CogIcon,
   RocketLaunchIcon,
   CheckIcon,
-  StarIcon
+  StarIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
-import { AgentConfig } from '@/types/agent'
+import { AgentConfig, AVAILABLE_TOOLS } from '@/types/agent'
 import { AGENT_TEMPLATES } from '@/types/agent'
 
 interface TemplateSelectionProps {
@@ -21,6 +22,7 @@ const iconMap = {
   CodeBracketIcon,
   CogIcon, 
   RocketLaunchIcon,
+  ChartBarIcon,
 }
 
 export function TemplateSelection({ config, updateConfig, onNext }: TemplateSelectionProps) {
@@ -32,12 +34,21 @@ export function TemplateSelection({ config, updateConfig, onNext }: TemplateSele
   const handleTemplateSelect = (templateId: string) => {
     const template = AGENT_TEMPLATES.find(t => t.id === templateId)
     if (template) {
+      const baseTools = config.tools && config.tools.length > 0 ? config.tools : AVAILABLE_TOOLS
+      const toolsWithDefaults = baseTools.map(tool => ({
+        ...tool,
+        enabled: template.defaultTools.includes(tool.id)
+      }))
+
       // Update config with template defaults
       updateConfig({ 
         templateId,
         name: config.name || `${template.name}`,
         description: config.description || template.description,
-        specialization: template.documentation
+        specialization: template.documentation,
+        tools: toolsWithDefaults,
+        // Keep existing permission choice, otherwise start safer for knowledge work
+        permissions: config.permissions || (template.domain === 'development' ? 'balanced' : 'restrictive')
       })
       
       // Auto-advance after selection

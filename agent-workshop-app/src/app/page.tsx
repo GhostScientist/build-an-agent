@@ -6,7 +6,8 @@ import {
   RocketLaunchIcon,
   CogIcon,
   CodeBracketIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
 import { AgentBuilder } from '@/components/wizard/AgentBuilder'
 
@@ -69,7 +70,7 @@ export default function HomePage() {
               className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
               For researchers, developers, and anyone who wants a specialized AI assistant.
-              Generate your own complete TypeScript CLI project <br /> <span className="font-semibold text-foreground">Free!</span>.
+              Generate your own complete TypeScript CLI project <br /> <span className="font-semibold text-foreground">Free!</span>
             </motion.p>
 
             <motion.div
@@ -301,6 +302,13 @@ const features = [
 ]
 
 const agentTemplates = [
+  {
+    name: 'Research Ops Agent',
+    description: 'Evidence-backed literature reviews, source tracking, and analyst-ready briefs.',
+    tools: ['Web Fetch/Search', 'Document Parsing', 'Citation Tracking', 'Reporting'],
+    icon: ChartBarIcon,
+    gradient: 'bg-gradient-to-br from-amber-500 to-orange-600',
+  },
   {
     name: 'Legacy Code Modernization',
     description: 'Analyze legacy codebases, identify technical debt, and create modernization strategies.',

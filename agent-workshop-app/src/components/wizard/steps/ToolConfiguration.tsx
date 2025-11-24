@@ -45,6 +45,12 @@ const riskLevels = {
   high: { color: 'red', label: 'High Risk' },
 }
 
+const riskBadges: Record<keyof typeof riskLevels, string> = {
+  low: 'bg-green-100 text-green-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  high: 'bg-red-100 text-red-700',
+}
+
 const toolRisks: Record<string, keyof typeof riskLevels> = {
   'read-file': 'low',
   'find-files': 'low',
@@ -57,6 +63,10 @@ const toolRisks: Record<string, keyof typeof riskLevels> = {
   'web-fetch': 'low',
   'database-query': 'medium',
   'api-client': 'medium',
+  'doc-ingest': 'medium',
+  'table-extract': 'medium',
+  'source-notes': 'low',
+  'local-rag': 'low',
 }
 
 export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigurationProps) {
@@ -257,7 +267,7 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
                               <h6 className="font-medium text-gray-900">{tool.name}</h6>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium bg-${riskConfig.color}-100 text-${riskConfig.color}-700`}>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${riskBadges[risk]}`}>
                                 {riskConfig.label}
                               </span>
                             </div>
@@ -266,6 +276,7 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
                           
                           <button
                             onClick={() => toggleTool(tool.id)}
+                            data-testid={`toggle-${tool.id}`}
                             className={`ml-3 w-5 h-5 rounded border-2 transition-all ${
                               tool.enabled
                                 ? 'bg-primary-500 border-primary-500'

@@ -1,6 +1,8 @@
 import { AgentConfig, GeneratedProject, GeneratedFile, ProjectMetadata } from '@/types/agent'
 import { AGENT_TEMPLATES } from '@/types/agent'
 
+const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
+
 // Helper function to sanitize names for use in TypeScript class names and identifiers
 function sanitizeClassName(name: string): string {
   return name
@@ -71,6 +73,13 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
       files.push(toolFile)
     }
   }
+
+  if (enabledTools.some(tool => KNOWLEDGE_TOOL_IDS.includes(tool.id))) {
+    const knowledgeToolsFile = generateKnowledgeToolsImpl()
+    if (knowledgeToolsFile) {
+      files.push(knowledgeToolsFile)
+    }
+  }
   
   // Generate README
   files.push({
@@ -96,20 +105,66 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     template: '.env.example'
   })
 
+  // Sample workflows and data (local-first)
+  files.push({
+    path: 'workflows/literature_review.md',
+    content: generateLiteratureWorkflow(),
+    type: 'markdown',
+    template: 'workflows/literature_review.md'
+  })
+
+  files.push({
+    path: 'workflows/experiment_log.md',
+    content: generateExperimentLog(),
+    type: 'markdown',
+    template: 'workflows/experiment_log.md'
+  })
+
+  files.push({
+    path: 'data/sample-notes.md',
+    content: sampleNotes(),
+    type: 'markdown',
+    template: 'data/sample-notes.md'
+  })
+
+  files.push({
+    path: 'data/sample-table.csv',
+    content: sampleTable(),
+    type: 'markdown',
+    template: 'data/sample-table.csv'
+  })
+
+  // Developer scripts
+  files.push({
+    path: 'scripts/publish.sh',
+    content: generatePublishScript(config),
+    type: 'shell',
+    template: 'scripts/publish.sh'
+  })
+
+  files.push({
+    path: 'scripts/eval.ts',
+    content: generateEvalScript(config),
+    type: 'typescript',
+    template: 'scripts/eval.ts'
+  })
+
+  files.push({
+    path: 'src/tools/custom/custom-tool-template.ts',
+    content: generateCustomToolTemplate(),
+    type: 'typescript',
+    template: 'src/tools/custom/custom-tool-template.ts'
+  })
+
   const metadata: ProjectMetadata = {
     generatedAt: new Date(),
     templateVersion: '1.0.0',
-    agentWorkshopVersion: '0.1.0', 
-    dependencies: {
-      '@anthropic-ai/claude-agent-sdk': '^0.1.0',
-      'commander': '^12.0.0',
-      'chalk': '^5.3.0',
-      'ora': '^8.0.1',
-      'inquirer': '^9.2.12'
-    },
+    agentWorkshopVersion: '0.1.0',
+    dependencies: getDependencies(config),
     devDependencies: {
       '@types/node': '^20.10.0',
       '@types/inquirer': '^9.0.7',
+      '@types/pdf-parse': '^1.1.4',
       'typescript': '^5.3.0',
       'ts-node': '^10.9.2'
     },
@@ -154,7 +209,8 @@ function generatePackageJson(config: AgentConfig): string {
       start: 'node dist/cli.js',
       test: 'node dist/cli.js --help',
       clean: 'rm -rf dist',
-      prepare: 'npm run build'
+      prepare: 'npm run build',
+      eval: 'ts-node scripts/eval.ts'
     },
     keywords: [
       'ai-agent',
@@ -173,6 +229,7 @@ function generatePackageJson(config: AgentConfig): string {
     devDependencies: {
       '@types/node': '^20.10.0',
       '@types/inquirer': '^9.0.7',
+      '@types/pdf-parse': '^1.1.4',
       'typescript': '^5.3.0',
       'ts-node': '^10.9.2'
     }
@@ -219,6 +276,11 @@ function getDependencies(config: AgentConfig): Record<string, string> {
     baseDeps['better-sqlite3'] = '^9.0.0'
   }
   
+  if (enabledTools.some(t => KNOWLEDGE_TOOL_IDS.includes(t.id))) {
+    baseDeps['pdf-parse'] = '^1.1.1'
+    baseDeps['mammoth'] = '^1.7.2'
+  }
+  
   return baseDeps
 }
 
@@ -227,7 +289,7 @@ function generateTsConfig(): string {
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src", 
@@ -275,7 +337,7 @@ import ora from 'ora';
 import inquirer from 'inquirer';
 import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
-import { PermissionManager } from './permissions.js';
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
 
 const program = new Command();
 
@@ -338,7 +400,7 @@ program
         process.exit(1);
       }
 
-      const permissionManager = new PermissionManager();
+      const permissionManager = new PermissionManager({ policy: '${config.permissions || 'balanced'}' });
       const agent = new ${sanitizeClassName(config.name)}Agent({
         verbose: options?.verbose || false,
         apiKey: config.apiKey,
@@ -467,6 +529,7 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   const hasFileOps = enabledTools.some(t => t.category === 'file')
   const hasCommands = enabledTools.some(t => t.category === 'command')
   const hasWeb = enabledTools.some(t => t.category === 'web')
+  const hasKnowledge = enabledTools.some(t => KNOWLEDGE_TOOL_IDS.includes(t.id))
   
   let imports: string[] = []
   
@@ -493,28 +556,33 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   if (hasWeb) {
     imports.push(`import { WebTools } from './tools/web-tools.js';`)
   }
+  if (hasKnowledge) {
+    imports.push(`import { KnowledgeTools } from './tools/knowledge-tools.js';`)
+  }
 
   // Generate the agent class based on SDK provider
   switch (config.sdkProvider) {
     case 'claude':
-      return generateClaudeAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+      return generateClaudeAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'openai':
-      return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+      return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'anthropic-direct':
-      return generateAnthropicDirectAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb)
+      return generateAnthropicDirectAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     default:
       throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
   }
 }
 
-function generateClaudeAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
+function generateClaudeAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   return `${imports.join('\n')}
-import { PermissionManager } from './permissions.js';
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
   apiKey?: string;
   permissionManager?: PermissionManager;
+  permissions?: PermissionPolicy;
+  auditPath?: string;
 }
 
 export class ${className}Agent {
@@ -522,7 +590,8 @@ export class ${className}Agent {
   private permissionManager: PermissionManager;${hasFileOps ? `
   private fileOps: FileOperations;` : ''}${hasCommands ? `
   private commandRunner: CommandRunner;` : ''}${hasWeb ? `
-  private webTools: WebTools;` : ''}
+  private webTools: WebTools;` : ''}${hasKnowledge ? `
+  private knowledgeTools: KnowledgeTools;` : ''}
   private customServer: ReturnType<typeof createSdkMcpServer>;
   private sessionId?: string;
 
@@ -537,10 +606,11 @@ export class ${className}Agent {
       throw new Error('Anthropic API key is required. Set it via config.apiKey or ANTHROPIC_API_KEY environment variable.');
     }
 
-    this.permissionManager = config.permissionManager || new PermissionManager();${hasFileOps ? `
+    this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });${hasFileOps ? `
     this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
     this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
-    this.webTools = new WebTools(this.permissionManager);` : ''}
+    this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
+    this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
 
     // Create SDK MCP server with custom tools
     this.customServer = this.createToolServer();
@@ -701,7 +771,77 @@ export class ${className}Agent {
           };
         }
       )
-    );` : ''}
+    );` : ''}${hasKnowledge ? `
+
+    const knowledgeToolsEnabled = new Set(${JSON.stringify(enabledTools.filter(t => KNOWLEDGE_TOOL_IDS.includes(t.id)).map(t => t.id))});
+
+    if (knowledgeToolsEnabled.has('doc-ingest')) {
+      tools.push(
+        tool(
+          'doc_ingest',
+          'Extract text from documents (pdf, docx, txt)',
+          {
+            filePath: z.string().describe('Path to the document'),
+            captureSources: z.boolean().default(true).describe('Whether to capture source metadata')
+          },
+          async (args) => {
+            const result = await this.knowledgeTools.extractText(args.filePath, args.captureSources);
+            return { content: [{ type: 'text', text: result.text }] };
+          }
+        )
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('table-extract')) {
+      tools.push(
+        tool(
+          'table_extract',
+          'Extract tables from documents into CSV/JSON',
+          {
+            filePath: z.string().describe('Path to the document'),
+          },
+          async (args) => {
+            const result = await this.knowledgeTools.extractTables(args.filePath);
+            return { content: [{ type: 'text', text: result.summary }] };
+          }
+        )
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('source-notes')) {
+      tools.push(
+        tool(
+          'source_notes',
+          'Append a note with source + citation to the local notebook',
+          {
+            title: z.string().describe('Title for the note'),
+            source: z.string().describe('Source URL or path'),
+            content: z.string().describe('Summary or quote')
+          },
+          async (args) => {
+            const saved = await this.knowledgeTools.saveNote(args.title, args.source, args.content);
+            return { content: [{ type: 'text', text: saved }] };
+          }
+        )
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('local-rag')) {
+      tools.push(
+        tool(
+          'local_retrieval',
+          'Search local notes/corpus for grounded snippets',
+          {
+            query: z.string().describe('Search query'),
+            limit: z.number().optional().describe('Max results')
+          },
+          async (args) => {
+            const result = await this.knowledgeTools.searchLocal(args.query, args.limit || 5);
+            return { content: [{ type: 'text', text: result }] };
+          }
+        )
+      );
+    }` : ''}
 
     return createSdkMcpServer({
       name: 'custom-tools',
@@ -719,7 +859,7 @@ ${config.specialization || template?.documentation || ''}
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
 
 ## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
   }${hasFileOps ? `
@@ -750,11 +890,21 @@ Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
 
   async fetchUrl(url: string): Promise<string> {
     return this.webTools.fetch(url);
+  }` : ''}${hasKnowledge ? `
+
+  // Knowledge helpers
+  async extractDocument(filePath: string): Promise<string> {
+    const result = await this.knowledgeTools.extractText(filePath, true);
+    return result.text;
+  }
+
+  async retrieveLocal(query: string, limit = 5): Promise<string> {
+    return this.knowledgeTools.searchLocal(query, limit);
   }` : ''}
 }`
 }
 
-function generateOpenAIAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
+function generateOpenAIAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   return `${imports.join('\n')}
 import { z } from 'zod';
 import { PermissionManager } from './permissions.js';
@@ -764,6 +914,8 @@ export interface ${className}AgentConfig {
   apiKey?: string;
   model?: string;
   permissionManager?: PermissionManager;
+  permissions?: PermissionPolicy;
+  auditPath?: string;
 }
 
 export class ${className}Agent {
@@ -772,11 +924,12 @@ export class ${className}Agent {
   private permissionManager: PermissionManager;${hasFileOps ? `
   private fileOps: FileOperations;` : ''}${hasCommands ? `
   private commandRunner: CommandRunner;` : ''}${hasWeb ? `
-  private webTools: WebTools;` : ''}
+  private webTools: WebTools;` : ''}${hasKnowledge ? `
+  private knowledgeTools: KnowledgeTools;` : ''}
 
   constructor(config: ${className}AgentConfig = {}) {
     this.config = config;
-    this.permissionManager = config.permissionManager || new PermissionManager();
+    this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });
 
     if (!config.apiKey && !process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is required. Set it via config.apiKey or OPENAI_API_KEY environment variable.');
@@ -788,7 +941,8 @@ export class ${className}Agent {
     }${hasFileOps ? `
     this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
     this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
-    this.webTools = new WebTools(this.permissionManager);` : ''}
+    this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
+    this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
 
     // Create OpenAI agent with tools
     this.agent = new Agent({
@@ -946,6 +1100,75 @@ export class ${className}Agent {
     });
     tools.push(fetchTextTool);` : ''}
     
+    ${hasKnowledge ? `
+    const knowledgeToolsEnabled = new Set(${JSON.stringify(enabledTools.filter(t => KNOWLEDGE_TOOL_IDS.includes(t.id)).map(t => t.id))});
+
+    if (knowledgeToolsEnabled.has('doc-ingest')) {
+      tools.push(
+        tool({
+          name: 'doc_ingest',
+          description: 'Extract text from documents (pdf, docx, txt)',
+          parameters: z.object({
+            filePath: z.string(),
+            captureSources: z.boolean().optional()
+          }),
+          execute: async ({ filePath, captureSources = true }: { filePath: string; captureSources?: boolean }) => {
+            const result = await this.knowledgeTools.extractText(filePath, captureSources);
+            return result.text;
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('table-extract')) {
+      tools.push(
+        tool({
+          name: 'table_extract',
+          description: 'Extract tables from documents into CSV/JSON',
+          parameters: z.object({
+            filePath: z.string()
+          }),
+          execute: async ({ filePath }: { filePath: string }) => {
+            const result = await this.knowledgeTools.extractTables(filePath);
+            return result.summary;
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('source-notes')) {
+      tools.push(
+        tool({
+          name: 'source_notes',
+          description: 'Append a note with source + citation to the local notebook',
+          parameters: z.object({
+            title: z.string(),
+            source: z.string(),
+            content: z.string()
+          }),
+          execute: async ({ title, source, content }: { title: string; source: string; content: string }) => {
+            return await this.knowledgeTools.saveNote(title, source, content);
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('local-rag')) {
+      tools.push(
+        tool({
+          name: 'local_retrieval',
+          description: 'Search local notes/corpus for grounded snippets',
+          parameters: z.object({
+            query: z.string(),
+            limit: z.number().optional()
+          }),
+          execute: async ({ query, limit = 5 }: { query: string; limit?: number }) => {
+            return await this.knowledgeTools.searchLocal(query, limit);
+          }
+        })
+      );
+    }` : ''}
+    
     return tools;
   }
 
@@ -958,7 +1181,7 @@ ${config.specialization || template?.documentation || ''}
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
 
 ## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks. Use the provided tools when needed to accomplish tasks effectively.\`;
   }${hasFileOps ? `
@@ -989,11 +1212,21 @@ Always be helpful, accurate, and focused on ${config.domain} tasks. Use the prov
 
   async fetchUrl(url: string): Promise<string> {
     return this.webTools.fetch(url);
+  }` : ''}${hasKnowledge ? `
+
+  // Knowledge helpers
+  async extractDocument(filePath: string): Promise<string> {
+    const result = await this.knowledgeTools.extractText(filePath, true);
+    return result.text;
+  }
+
+  async retrieveLocal(query: string, limit = 5): Promise<string> {
+    return this.knowledgeTools.searchLocal(query, limit);
   }` : ''}
 }`
 }
 
-function generateAnthropicDirectAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean): string {
+function generateAnthropicDirectAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   return `${imports.join('\n')}
 
 export interface ${className}AgentConfig {
@@ -1060,7 +1293,7 @@ ${config.specialization || template?.documentation || ''}
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
 
 ## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
   }
@@ -1159,8 +1392,12 @@ export class ConfigManager {
 function generatePermissions(config: AgentConfig): string {
   return `import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { appendFile, mkdir } from 'fs/promises';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
 
-export type PermissionAction = 'write_file' | 'run_command' | 'delete_file' | 'modify_file' | 'network_request';
+export type PermissionAction = 'read_file' | 'write_file' | 'run_command' | 'delete_file' | 'modify_file' | 'network_request';
+export type PermissionPolicy = 'restrictive' | 'balanced' | 'permissive';
 
 export interface PermissionRequest {
   action: PermissionAction;
@@ -1173,35 +1410,62 @@ export interface PermissionResponse {
   remember?: boolean;
 }
 
+export interface PermissionOptions {
+  policy?: PermissionPolicy;
+  auditPath?: string;
+}
+
 export class PermissionManager {
   private allowedActions: Set<string> = new Set();
   private deniedActions: Set<string> = new Set();
   private alwaysAllow: Set<PermissionAction> = new Set();
   private alwaysDeny: Set<PermissionAction> = new Set();
+  private policy: PermissionPolicy;
+  private auditPath: string;
+
+  constructor(options: PermissionOptions = {}) {
+    this.policy = options.policy || '${config.permissions || 'balanced'}';
+    this.auditPath = options.auditPath || join(homedir(), '.${config.projectName}', 'audit.log');
+  }
 
   async requestPermission(request: PermissionRequest): Promise<PermissionResponse> {
     const actionKey = \`\${request.action}:\${request.resource}\`;
+    const policyDecision = this.applyPolicy(request.action);
 
-    // Check if we have a permanent decision for this specific action
+    if (policyDecision !== 'ask') {
+      const allowed = policyDecision === 'allow';
+      const response = { allowed, remember: true };
+      await this.audit(request, response, 'policy');
+      return response;
+    }
+
     if (this.allowedActions.has(actionKey)) {
-      return { allowed: true, remember: true };
+      const response = { allowed: true, remember: true };
+      await this.audit(request, response, 'cached');
+      return response;
     }
 
     if (this.deniedActions.has(actionKey)) {
-      return { allowed: false, remember: true };
+      const response = { allowed: false, remember: true };
+      await this.audit(request, response, 'cached');
+      return response;
     }
 
-    // Check if we always allow/deny this action type
     if (this.alwaysAllow.has(request.action)) {
-      return { allowed: true, remember: true };
+      const response = { allowed: true, remember: true };
+      await this.audit(request, response, 'always');
+      return response;
     }
 
     if (this.alwaysDeny.has(request.action)) {
-      return { allowed: false, remember: true };
+      const response = { allowed: false, remember: true };
+      await this.audit(request, response, 'always');
+      return response;
     }
 
-    // Ask user for permission
-    return await this.promptUser(request, actionKey);
+    const response = await this.promptUser(request, actionKey);
+    await this.audit(request, response, 'prompt');
+    return response;
   }
 
   private async promptUser(request: PermissionRequest, actionKey: string): Promise<PermissionResponse> {
@@ -1232,33 +1496,72 @@ export class PermissionManager {
     switch (decision) {
       case 'allow_once':
         return { allowed: true, remember: false };
-
       case 'allow_resource':
         this.allowedActions.add(actionKey);
         return { allowed: true, remember: true };
-
       case 'allow_action':
         this.alwaysAllow.add(request.action);
         return { allowed: true, remember: true };
-
       case 'deny_once':
         return { allowed: false, remember: false };
-
       case 'deny_resource':
         this.deniedActions.add(actionKey);
         return { allowed: false, remember: true };
-
       case 'deny_action':
         this.alwaysDeny.add(request.action);
         return { allowed: false, remember: true };
-
       default:
         return { allowed: false, remember: false };
     }
   }
 
+  private applyPolicy(action: PermissionAction): 'allow' | 'deny' | 'ask' {
+    const highRisk: PermissionAction[] = ['run_command', 'delete_file'];
+    const mediumRisk: PermissionAction[] = ['write_file', 'modify_file', 'network_request'];
+    const lowRisk: PermissionAction[] = ['read_file'];
+
+    if (this.policy === 'restrictive') {
+      if (highRisk.includes(action)) return 'deny';
+      if (mediumRisk.includes(action)) return 'ask';
+      if (lowRisk.includes(action)) return 'allow';
+    }
+
+    if (this.policy === 'balanced') {
+      if (highRisk.includes(action)) return 'ask';
+      if (mediumRisk.includes(action)) return 'ask';
+      return 'allow';
+    }
+
+    if (this.policy === 'permissive') {
+      return 'allow';
+    }
+
+    return 'ask';
+  }
+
+  private async audit(request: PermissionRequest, response: PermissionResponse, source: 'policy' | 'prompt' | 'cached' | 'always') {
+    try {
+      await mkdir(dirname(this.auditPath), { recursive: true });
+      const line = JSON.stringify({
+        timestamp: new Date().toISOString(),
+        action: request.action,
+        resource: request.resource,
+        details: request.details,
+        allowed: response.allowed,
+        remember: response.remember,
+        mode: this.policy,
+        source
+      }) + '\\n';
+      await appendFile(this.auditPath, line, { encoding: 'utf-8' });
+    } catch (error) {
+      console.warn('Failed to write audit log', error);
+    }
+  }
+
   private formatActionName(action: PermissionAction): string {
     switch (action) {
+      case 'read_file':
+        return 'file read';
       case 'write_file':
         return 'file writing';
       case 'run_command':
@@ -1615,6 +1918,100 @@ export class WebTools {
 }`
 }
 
+function generateKnowledgeToolsImpl(): GeneratedFile {
+  return {
+    path: 'src/tools/knowledge-tools.ts',
+    template: 'knowledge-tools.ts',
+    type: 'typescript',
+    content: `import { readFile, writeFile, mkdir } from 'fs/promises'
+import { resolve, dirname, extname } from 'path'
+import pdf from 'pdf-parse'
+import mammoth from 'mammoth'
+import { PermissionManager } from '../permissions.js'
+
+type ExtractResult = { text: string; source: string }
+
+export class KnowledgeTools {
+  private permissionManager: PermissionManager
+  private notesPath: string
+
+  constructor(permissionManager: PermissionManager, notesPath = resolve(process.cwd(), 'data', 'notes.md')) {
+    this.permissionManager = permissionManager
+    this.notesPath = notesPath
+  }
+
+  async extractText(filePath: string, captureSources = true): Promise<ExtractResult> {
+    const absolutePath = resolve(filePath)
+    await this.ensureReadable(absolutePath)
+    const ext = extname(absolutePath).toLowerCase()
+
+    let text = ''
+    if (ext === '.pdf') {
+      const data = await pdf(await readFile(absolutePath))
+      text = data.text
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ path: absolutePath })
+      text = result.value
+    } else {
+      text = await readFile(absolutePath, 'utf-8')
+    }
+
+    const source = captureSources ? absolutePath : ''
+    return { text, source }
+  }
+
+  async extractTables(filePath: string): Promise<{ summary: string }> {
+    const { text, source } = await this.extractText(filePath, true)
+    // naive table detection: lines with commas or tabs
+    const tableLines = text.split('\\n').filter(line => line.includes(',') || line.includes('\\t'))
+    const summary = [
+      'Table-like content (preview):',
+      tableLines.slice(0, 10).join('\\n'),
+      source ? '\\nSource: ' + source : ''
+    ].join('\\n')
+    return { summary }
+  }
+
+  async saveNote(title: string, source: string, content: string): Promise<string> {
+    await this.permissionManager.requestPermission({
+      action: 'write_file',
+      resource: this.notesPath,
+      details: 'Appending to local notes'
+    })
+    await mkdir(dirname(this.notesPath), { recursive: true })
+    const entry = [
+      '\\n## ' + title,
+      'Source: ' + source,
+      '',
+      content,
+      ''
+    ].join('\\n')
+    await writeFile(this.notesPath, entry, { flag: 'a' })
+    return 'Saved note to ' + this.notesPath
+  }
+
+  async searchLocal(query: string, limit = 5): Promise<string> {
+    const { text } = await this.extractText(this.notesPath, false).catch(() => ({ text: '' }))
+    const lines = text.split('\\n').filter(Boolean)
+    const matches = lines.filter(line => line.toLowerCase().includes(query.toLowerCase())).slice(0, limit)
+    if (matches.length === 0) {
+      return 'No matches found in local notes.'
+    }
+    return ['Matches:', ...matches].join('\\n')
+  }
+
+  private async ensureReadable(path: string) {
+    await this.permissionManager.requestPermission({
+      action: 'read_file',
+      resource: path,
+      details: 'Reading document for analysis'
+    })
+  }
+}
+`
+  }
+}
+
 function generateReadme(config: AgentConfig, template: any, enabledTools: any[]): string {
   const hasHighRiskTools = enabledTools.some(t => ['run-command', 'write-file'].includes(t.id))
 
@@ -1646,6 +2043,11 @@ This agent includes a built-in **permission system** that will ask for approval 
 ## Features
 
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+### Safety & Audit
+- Permission policy: ${config.permissions || 'balanced'}
+- Audit log: stored locally at \`~/.${config.projectName}/audit.log\`
+- Default workspace data: \`./data\` and \`./workflows\`
 
 ## Prerequisites
 
@@ -1715,6 +2117,11 @@ private buildSystemPrompt(): string {
 }
 \`\`\`
 
+### Local Knowledge Workflow
+- Drop PDFs/DOCX/TXT into \`./data/sources\`
+- Use tools \`doc_ingest\`, \`table_extract\`, \`source_notes\`, \`local_retrieval\`
+- See \`workflows/literature_review.md\` and \`data/sample-notes.md\` for examples
+
 ### Adding Custom Tools
 
 To add new tools:
@@ -1733,6 +2140,19 @@ Edit \`src/permissions.ts\` to:
 - Add/remove permission types
 - Customize permission prompt messages
 - Implement persistent permission storage
+
+## Evals
+
+Run lightweight evals (requires API key):
+\`\`\`bash
+npm run eval   # via scripts/eval.ts
+\`\`\`
+
+## Publish locally to npm
+\`\`\`bash
+chmod +x scripts/publish.sh
+./scripts/publish.sh
+\`\`\`
 
 ## Development
 
@@ -1795,5 +2215,142 @@ LOG_LEVEL=info
 
 # Optional: Custom configuration
 # CONFIG_PATH=/path/to/custom/config
+`
+}
+
+function generatePublishScript(config: AgentConfig): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+# Build and publish your agent locally to npm
+echo "🔧 Building ${config.projectName}..."
+npm install
+npm run build
+
+echo "📦 Preparing npm metadata..."
+npm pack
+
+echo "🚀 To publish, run:"
+echo "npm publish --access public"
+echo
+echo "✅ Consumers can install globally with:"
+echo "npm install -g ${config.projectName}"
+`
+}
+
+function generateEvalScript(config: AgentConfig): string {
+  return `#!/usr/bin/env ts-node
+import { ${sanitizeClassName(config.name)}Agent } from '../src/agent'
+import { PermissionManager } from '../src/permissions'
+import path from 'path'
+import fs from 'fs'
+
+async function main() {
+  const apiKey = process.env.${config.sdkProvider?.toUpperCase()}_API_KEY
+  if (!apiKey) {
+    console.error('Set ${config.sdkProvider?.toUpperCase()}_API_KEY before running evals')
+    process.exit(1)
+  }
+
+  const agent = new ${sanitizeClassName(config.name)}Agent({
+    apiKey,
+    permissionManager: new PermissionManager({ policy: 'restrictive' })
+  })
+
+  const tasks = [
+    { name: 'smoke-help', prompt: 'Summarize your capabilities in one paragraph.' },
+    { name: 'read-sample-note', prompt: 'Summarize the key insights from data/sample-notes.md and cite the source.' }
+  ]
+
+  fs.mkdirSync('eval-results', { recursive: true })
+
+  for (const task of tasks) {
+    console.log('\\n=== Running', task.name, '===')
+    const response = agent.query(task.prompt)
+    let output = ''
+    for await (const message of response) {
+      if (message.type === 'stream_event' && message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
+        process.stdout.write(message.event.delta.text || '')
+        output += message.event.delta.text || ''
+      }
+    }
+    fs.writeFileSync(path.join('eval-results', task.name + '.txt'), output, { encoding: 'utf-8', flag: 'w' })
+  }
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+`
+}
+
+function generateLiteratureWorkflow(): string {
+  return `# Literature Review Workflow (Local)
+
+1) Drop your PDFs/DOCX/TXT into ./data/sources
+2) Run the agent with prompts like:
+   - "Ingest the PDFs in ./data/sources and summarize the top 5 claims with citations."
+3) Use tools:
+   - doc_ingest: read documents and capture source paths
+   - table_extract: pull tables into CSV/JSON
+   - source_notes: append annotated notes to ./data/notes.md
+   - local_retrieval: search notes for grounded snippets
+4) Ask the agent to produce:
+   - Annotated bibliography (with file paths as citations)
+   - Gaps/open questions
+   - Next-read recommendations
+`
+}
+
+function generateExperimentLog(): string {
+  return `# Experiment Log Template (Local)
+
+- Date:
+- Hypothesis:
+- Context:
+- Procedure:
+- Observations:
+- Results:
+- Next Actions:
+
+Use source_notes to append findings with paths to raw data for traceability.
+`
+}
+
+function sampleNotes(): string {
+  return `## Sample Note
+Source: data/sample-notes.md
+
+- Retrieval-augmented generation combines a retriever and generator to ground responses.
+- Citations matter: always include the source path or URL.
+`
+}
+
+function sampleTable(): string {
+  return `name,category,score
+alpha,baseline,0.61
+beta,improved,0.74
+gamma,experimental,0.52
+`
+}
+
+function generateCustomToolTemplate(): string {
+  return `// Example custom tool. Copy/rename this file and wire it into src/agent.ts
+import { PermissionManager } from '../../permissions'
+
+export class CustomToolTemplate {
+  constructor(private permissions: PermissionManager) {}
+
+  async doSomething(input: string): Promise<string> {
+    await this.permissions.requestPermission({
+      action: 'network_request',
+      resource: 'https://example.com',
+      details: 'Example custom tool call'
+    })
+    // TODO: implement your logic here
+    return \`You sent: \${input}\`
+  }
+}
 `
 }
