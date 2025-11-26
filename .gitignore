@@ -8,6 +8,8 @@ agent-workshop-app/.next/
 dist/
 build/
 
+GENERATED_AGENTS/
+
 # Environment variables
 .env
 .env.local

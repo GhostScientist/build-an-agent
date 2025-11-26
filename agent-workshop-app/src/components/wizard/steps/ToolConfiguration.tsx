@@ -45,6 +45,12 @@ const riskLevels = {
   high: { color: 'red', label: 'High Risk' },
 }
 
+const riskBadges: Record<keyof typeof riskLevels, string> = {
+  low: 'bg-green-100 text-green-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  high: 'bg-red-100 text-red-700',
+}
+
 const toolRisks: Record<string, keyof typeof riskLevels> = {
   'read-file': 'low',
   'find-files': 'low',
@@ -57,6 +63,10 @@ const toolRisks: Record<string, keyof typeof riskLevels> = {
   'web-fetch': 'low',
   'database-query': 'medium',
   'api-client': 'medium',
+  'doc-ingest': 'medium',
+  'table-extract': 'medium',
+  'source-notes': 'low',
+  'local-rag': 'low',
 }
 
 export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigurationProps) {
@@ -87,24 +97,33 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
   }
 
   const setPermissionLevel = (level: AgentConfig['permissions']) => {
-    updateConfig({ permissions: level })
-    
     // Auto-configure tools based on permission level
+    let updatedTools = config.tools || []
+
     if (level === 'restrictive') {
       // Only enable read-only tools
-      const updatedTools = config.tools?.map(tool => ({
+      updatedTools = config.tools?.map(tool => ({
         ...tool,
         enabled: ['read-file', 'find-files', 'search-files', 'web-search'].includes(tool.id)
       })) || []
-      updateConfig({ tools: updatedTools })
+    } else if (level === 'balanced') {
+      // Enable safe tools and common operations
+      const safeLowRiskTools = ['read-file', 'find-files', 'search-files', 'web-search', 'web-fetch', 'source-notes', 'local-rag']
+      const mediumRiskTools = ['write-file', 'edit-file', 'git-operations', 'doc-ingest', 'table-extract', 'api-client', 'database-query']
+      updatedTools = config.tools?.map(tool => ({
+        ...tool,
+        enabled: safeLowRiskTools.includes(tool.id) || mediumRiskTools.includes(tool.id)
+      })) || []
     } else if (level === 'permissive') {
       // Enable all tools
-      const updatedTools = config.tools?.map(tool => ({
+      updatedTools = config.tools?.map(tool => ({
         ...tool,
         enabled: true
       })) || []
-      updateConfig({ tools: updatedTools })
     }
+
+    // Update both permissions and tools in a single call to avoid state batching issues
+    updateConfig({ permissions: level, tools: updatedTools })
   }
 
   return (
@@ -200,87 +219,104 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
         <div className="space-y-6">
           {Object.entries(toolsByCategory).map(([category, tools]) => {
             if (tools.length === 0) return null
-            
+
             const IconComponent = categoryIcons[category as keyof typeof categoryIcons]
             const allEnabled = tools.every(tool => tool.enabled)
             const someEnabled = tools.some(tool => tool.enabled)
-            
+
+            // Disable custom category as "Coming Soon"
+            const isComingSoon = category === 'custom'
+
             return (
               <motion.div
                 key={category}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gray-50 rounded-xl p-6"
+                className={`bg-gray-50 rounded-xl p-6 ${isComingSoon ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <IconComponent className="w-6 h-6 text-gray-600" />
                     <div>
-                      <h5 className="font-semibold text-gray-900 capitalize">
+                      <h5 className="font-semibold text-gray-900 capitalize flex items-center gap-2">
                         {category} Operations
+                        {isComingSoon && (
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-normal">
+                            Coming Soon
+                          </span>
+                        )}
                       </h5>
                       <p className="text-sm text-gray-600">
                         {categoryDescriptions[category as keyof typeof categoryDescriptions]}
                       </p>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => toggleCategory(category)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      allEnabled
-                        ? 'bg-green-100 text-green-700'
-                        : someEnabled
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {allEnabled ? 'All Enabled' : someEnabled ? 'Partial' : 'Enable All'}
-                  </button>
+
+                  {!isComingSoon && (
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        allEnabled
+                          ? 'bg-green-100 text-green-700'
+                          : someEnabled
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {allEnabled ? 'All Enabled' : someEnabled ? 'Partial' : 'Enable All'}
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-3">
-                  {tools.map(tool => {
-                    const risk = toolRisks[tool.id] || 'low'
-                    const riskConfig = riskLevels[risk]
-                    
-                    return (
-                      <div
-                        key={tool.id}
-                        className={`p-4 border rounded-lg transition-all ${
-                          tool.enabled
-                            ? 'border-primary-200 bg-white shadow-sm'
-                            : 'border-gray-200 bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h6 className="font-medium text-gray-900">{tool.name}</h6>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium bg-${riskConfig.color}-100 text-${riskConfig.color}-700`}>
-                                {riskConfig.label}
-                              </span>
+                {isComingSoon ? (
+                  <p className="text-sm text-gray-500 italic">
+                    Custom tool integration coming in a future release.
+                  </p>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {tools.map(tool => {
+                      const risk = toolRisks[tool.id] || 'low'
+                      const riskConfig = riskLevels[risk]
+
+                      return (
+                        <div
+                          key={tool.id}
+                          className={`p-4 border rounded-lg transition-all ${
+                            tool.enabled
+                              ? 'border-primary-200 bg-white shadow-sm'
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <h6 className="font-medium text-gray-900">{tool.name}</h6>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${riskBadges[risk]}`}>
+                                  {riskConfig.label}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600">{tool.description}</p>
                             </div>
-                            <p className="text-sm text-gray-600">{tool.description}</p>
+
+                            <button
+                              onClick={() => toggleTool(tool.id)}
+                              data-testid={`toggle-${tool.id}`}
+                              className={`ml-3 w-5 h-5 rounded border-2 transition-all ${
+                                tool.enabled
+                                  ? 'bg-primary-500 border-primary-500'
+                                  : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              {tool.enabled && (
+                                <CheckIcon className="w-3 h-3 text-white" />
+                              )}
+                            </button>
                           </div>
-                          
-                          <button
-                            onClick={() => toggleTool(tool.id)}
-                            className={`ml-3 w-5 h-5 rounded border-2 transition-all ${
-                              tool.enabled
-                                ? 'bg-primary-500 border-primary-500'
-                                : 'border-gray-300 hover:border-gray-400'
-                            }`}
-                          >
-                            {tool.enabled && (
-                              <CheckIcon className="w-3 h-3 text-white" />
-                            )}
-                          </button>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </motion.div>
             )
           })}

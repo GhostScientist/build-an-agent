@@ -1,4 +1,4 @@
-export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'custom'
+export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge' | 'custom'
 
 export type SDKProvider = 'claude' | 'openai' | 'anthropic-direct' | 'custom'
 
@@ -180,6 +180,35 @@ export const AVAILABLE_TOOLS: AgentTool[] = [
     category: 'integration',
     enabled: false,
   },
+  // Knowledge & Research
+  {
+    id: 'doc-ingest',
+    name: 'Document Ingestion',
+    description: 'Extract text from PDFs, DOCX, and text files with source capture',
+    category: 'integration',
+    enabled: false,
+  },
+  {
+    id: 'table-extract',
+    name: 'Table to CSV',
+    description: 'Extract tables from documents into structured CSV/JSON',
+    category: 'integration',
+    enabled: false,
+  },
+  {
+    id: 'source-notes',
+    name: 'Source Notebook',
+    description: 'Track sources, citations, and summaries in a local notebook',
+    category: 'custom',
+    enabled: false,
+  },
+  {
+    id: 'local-rag',
+    name: 'Local Retrieval',
+    description: 'Search local notes/corpus for grounded snippets (no remote calls)',
+    category: 'custom',
+    enabled: false,
+  },
 ]
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
@@ -234,6 +263,23 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     ],
     codeTemplates: {},
     documentation: 'Specialized in social media content creation, trend analysis, hashtag research, and multi-platform content adaptation.',
+  },
+  {
+    id: 'research-ops-agent',
+    name: 'Research Ops Agent',
+    description: 'Synthesize literature, capture sources, and turn notes into structured briefs with citations.',
+    domain: 'knowledge',
+    icon: 'ChartBarIcon',
+    gradient: 'from-amber-500 to-orange-600',
+    defaultTools: ['read-file', 'find-files', 'search-files', 'web-search', 'web-fetch', 'api-client', 'doc-ingest', 'table-extract', 'source-notes', 'local-rag'],
+    samplePrompts: [
+      'Perform a rapid literature review on LLM evaluation methods and summarize gaps',
+      'Extract key claims and citations from these PDFs and produce an annotated bibliography',
+      'Track new papers on retrieval-augmented generation and send me weekly digests',
+      'Generate a competitive brief comparing top vector databases with sources'
+    ],
+    codeTemplates: {},
+    documentation: 'Optimized for knowledge work: structured evidence gathering, citation-safe summaries, and repeatable research workflows. Designed for analysts and scientists who need traceable sources.',
   },
   // General purpose templates
   {
