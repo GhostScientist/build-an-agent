@@ -97,24 +97,33 @@ export function ToolConfiguration({ config, updateConfig, onNext }: ToolConfigur
   }
 
   const setPermissionLevel = (level: AgentConfig['permissions']) => {
-    updateConfig({ permissions: level })
-    
     // Auto-configure tools based on permission level
+    let updatedTools = config.tools || []
+
     if (level === 'restrictive') {
       // Only enable read-only tools
-      const updatedTools = config.tools?.map(tool => ({
+      updatedTools = config.tools?.map(tool => ({
         ...tool,
         enabled: ['read-file', 'find-files', 'search-files', 'web-search'].includes(tool.id)
       })) || []
-      updateConfig({ tools: updatedTools })
+    } else if (level === 'balanced') {
+      // Enable safe tools and common operations
+      const safeLowRiskTools = ['read-file', 'find-files', 'search-files', 'web-search', 'web-fetch', 'source-notes', 'local-rag']
+      const mediumRiskTools = ['write-file', 'edit-file', 'git-operations', 'doc-ingest', 'table-extract', 'api-client', 'database-query']
+      updatedTools = config.tools?.map(tool => ({
+        ...tool,
+        enabled: safeLowRiskTools.includes(tool.id) || mediumRiskTools.includes(tool.id)
+      })) || []
     } else if (level === 'permissive') {
       // Enable all tools
-      const updatedTools = config.tools?.map(tool => ({
+      updatedTools = config.tools?.map(tool => ({
         ...tool,
         enabled: true
       })) || []
-      updateConfig({ tools: updatedTools })
     }
+
+    // Update both permissions and tools in a single call to avoid state batching issues
+    updateConfig({ permissions: level, tools: updatedTools })
   }
 
   return (

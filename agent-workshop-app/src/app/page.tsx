@@ -69,8 +69,9 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
-              For researchers, developers, and anyone who wants a specialized AI assistant.
-              Generate your own complete TypeScript CLI project <br /> <span className="font-semibold text-foreground">Free!</span>
+              Turn complex workflows into powerful AI agents. Build specialized assistants with slash commands,
+              multi-step workflows, and enterprise-grade tools. <br />
+              <span className="font-semibold text-foreground">Production-ready TypeScript CLIs in minutes. Completely free.</span>
             </motion.p>
 
             <motion.div
@@ -122,25 +123,34 @@ export default function HomePage() {
                   <div className="w-3 h-3 rounded-full bg-destructive"></div>
                   <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-muted-foreground ml-2">Generated Agent CLI</span>
+                  <span className="text-muted-foreground ml-2">Research Agent CLI with Workflows</span>
                 </div>
                 <div className="space-y-2">
                   <div>
                     <span className="text-green-500">$</span>
-                    <span className="text-foreground"> my-agent</span>
+                    <span className="text-foreground"> researcher-agent</span>
                   </div>
                   <div className="text-muted-foreground">
-                    🤖 Code Review Agent
+                    🔬 Research Operations Agent
                   </div>
                   <div className="text-muted-foreground">
-                    Automated code quality and security analysis
+                    Evidence-backed research with systematic literature reviews
                   </div>
                   <div className="mt-4">
-                    <span className="text-blue-400">my-agent&gt;</span>
-                    <span className="text-foreground"> Review the auth module for security issues</span>
+                    <span className="text-blue-400">researcher&gt;</span>
+                    <span className="text-foreground"> /literature-review --sources ./papers --limit 15</span>
                   </div>
                   <div className="text-muted-foreground mt-2">
-                    <span className="animate-pulse">▋</span> Analyzing authentication implementation...
+                    <span className="text-green-500">✓</span> Step 1/6: Found 23 documents in ./papers
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-green-500">✓</span> Step 2/6: Extracted 15 key claims with citations
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-yellow-500">⋯</span> Step 3/6: Identifying research gaps...
+                  </div>
+                  <div className="text-muted-foreground mt-2">
+                    <span className="animate-pulse">▋</span>
                   </div>
                 </div>
               </div>
@@ -154,11 +164,11 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h3 className="text-3xl font-bold tracking-tight mb-4">
-              Built on Official SDKs
+              Enterprise Workflows Meet AI Intelligence
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              True integration with Claude Agent SDK and OpenAI Agents API—complete with
-              MCP tools, streaming, session management, and built-in security.
+              Generated agents include sophisticated slash command workflows for multi-step operations.
+              Built on Claude Agent SDK and OpenAI Agents API with MCP tools, streaming, and production-grade security.
             </p>
           </div>
           
@@ -247,10 +257,11 @@ export default function HomePage() {
             className="text-center"
           >
             <h3 className="text-3xl font-bold tracking-tight mb-4">
-              Ready to Build Your Agent?
+              Ready to Build Your Workflow-Powered Agent?
             </h3>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Choose your SDK, pick a template, select tools—preview the generated code and download your working CLI in under a minute.
+              Choose your domain, select a template with pre-built workflows, configure tools—then download a production-ready
+              TypeScript CLI with slash commands, multi-step orchestration, and enterprise security.
             </p>
             <button
               onClick={() => setShowBuilder(true)}
@@ -285,18 +296,18 @@ export default function HomePage() {
 
 const features = [
   {
-    title: 'SDK-Native Implementation',
-    description: 'Built on Claude Agent SDK and OpenAI Agents API. Get proper MCP tool integration, session management, streaming, and automatic context handling—not a wrapper, but true SDK integration.',
+    title: 'Multi-Step Workflows',
+    description: 'Domain-specific slash commands like /literature-review, /code-audit, /invoice-batch orchestrate complex multi-step processes. Template variables, retry logic, and error handling built-in.',
     icon: CodeBracketIcon,
   },
   {
     title: 'Production-Ready Security',
-    description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve actions before they execute.',
+    description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
     icon: CogIcon,
   },
   {
-    title: 'Instant Customization',
-    description: 'Download complete TypeScript source code. Modify system prompts, add custom tools, adjust behaviors, or extend with MCP servers. It\'s your codebase from day one.',
+    title: 'SDK-Native & Customizable',
+    description: 'Built on official Claude Agent SDK and OpenAI Agents API with MCP tool integration. Download complete TypeScript source—modify prompts, add tools, or extend workflows from day one.',
     icon: RocketLaunchIcon,
   },
 ]

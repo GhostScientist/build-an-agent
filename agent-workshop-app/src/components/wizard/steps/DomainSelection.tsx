@@ -106,11 +106,7 @@ const domains = [
 export function DomainSelection({ config, updateConfig, onNext }: DomainSelectionProps) {
   const handleDomainSelect = (domain: AgentDomain) => {
     updateConfig({ domain })
-    
-    // Auto-advance after a short delay for better UX
-    setTimeout(() => {
-      onNext()
-    }, 500)
+    // Note: Removed auto-advance - users can click Next button when ready
   }
 
   return (

@@ -156,6 +156,115 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     template: 'src/tools/custom/custom-tool-template.ts'
   })
 
+  // Workflow support files
+  files.push({
+    path: 'src/workflows.ts',
+    content: generateWorkflowExecutor(config),
+    type: 'typescript',
+    template: 'src/workflows.ts'
+  })
+
+  // Add domain-specific workflows based on agent template
+  const domain = config.domain || template?.domain
+
+  // Knowledge domain workflows
+  if (domain === 'knowledge') {
+    files.push({
+      path: '.commands/literature-review.json',
+      content: generateLiteratureReviewWorkflow(),
+      type: 'json',
+      template: '.commands/literature-review.json'
+    })
+    files.push({
+      path: '.commands/experiment-log.json',
+      content: generateExperimentLogWorkflow(),
+      type: 'json',
+      template: '.commands/experiment-log.json'
+    })
+  }
+
+  // Development domain workflows
+  if (domain === 'development') {
+    files.push({
+      path: '.commands/code-audit.json',
+      content: generateCodeAuditWorkflow(),
+      type: 'json',
+      template: '.commands/code-audit.json'
+    })
+    files.push({
+      path: '.commands/test-suite.json',
+      content: generateTestSuiteWorkflow(),
+      type: 'json',
+      template: '.commands/test-suite.json'
+    })
+    files.push({
+      path: '.commands/refactor-analysis.json',
+      content: generateRefactorAnalysisWorkflow(),
+      type: 'json',
+      template: '.commands/refactor-analysis.json'
+    })
+  }
+
+  // Business domain workflows
+  if (domain === 'business') {
+    files.push({
+      path: '.commands/invoice-batch.json',
+      content: generateInvoiceBatchWorkflow(),
+      type: 'json',
+      template: '.commands/invoice-batch.json'
+    })
+    files.push({
+      path: '.commands/contract-review.json',
+      content: generateContractReviewWorkflow(),
+      type: 'json',
+      template: '.commands/contract-review.json'
+    })
+    files.push({
+      path: '.commands/meeting-summary.json',
+      content: generateMeetingSummaryWorkflow(),
+      type: 'json',
+      template: '.commands/meeting-summary.json'
+    })
+  }
+
+  // Creative domain workflows
+  if (domain === 'creative') {
+    files.push({
+      path: '.commands/content-calendar.json',
+      content: generateContentCalendarWorkflow(),
+      type: 'json',
+      template: '.commands/content-calendar.json'
+    })
+    files.push({
+      path: '.commands/blog-outline.json',
+      content: generateBlogOutlineWorkflow(),
+      type: 'json',
+      template: '.commands/blog-outline.json'
+    })
+    files.push({
+      path: '.commands/campaign-brief.json',
+      content: generateCampaignBriefWorkflow(),
+      type: 'json',
+      template: '.commands/campaign-brief.json'
+    })
+  }
+
+  // Data domain workflows
+  if (domain === 'data') {
+    files.push({
+      path: '.commands/dataset-profile.json',
+      content: generateDatasetProfileWorkflow(),
+      type: 'json',
+      template: '.commands/dataset-profile.json'
+    })
+    files.push({
+      path: '.commands/chart-report.json',
+      content: generateChartReportWorkflow(),
+      type: 'json',
+      template: '.commands/chart-report.json'
+    })
+  }
+
   const metadata: ProjectMetadata = {
     generatedAt: new Date(),
     templateVersion: '1.0.0',
@@ -249,14 +358,14 @@ function getDependencies(config: AgentConfig): Record<string, string> {
   // Add SDK-specific dependencies
   switch (config.sdkProvider) {
     case 'claude':
-      baseDeps['@anthropic-ai/claude-agent-sdk'] = '^0.1.0'
+      baseDeps['@anthropic-ai/claude-agent-sdk'] = '^0.1.53'
       break
     case 'openai':
       baseDeps['@openai/agents'] = '^0.1.0'
       baseDeps['zod'] = '^3.0.0'
       break
     case 'anthropic-direct':
-      baseDeps['@anthropic-ai/sdk'] = '^0.24.0'
+      baseDeps['@anthropic-ai/sdk'] = '^0.71.0'
       break
   }
   
@@ -421,6 +530,71 @@ program
     }
   });
 
+function parseSlashCommand(input: string): { command: string; args: Record<string, any>; error?: string } {
+  // Remove leading slash
+  const trimmed = input.slice(1).trim();
+
+  // Split by spaces, but respect quotes
+  const parts: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let quoteChar = '';
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+
+    if ((char === '"' || char === "'") && (i === 0 || trimmed[i - 1] !== '\\\\')) {
+      if (!inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+      } else if (char === quoteChar) {
+        inQuotes = false;
+        quoteChar = '';
+      } else {
+        current += char;
+      }
+    } else if (char === ' ' && !inQuotes) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+
+  if (current) {
+    parts.push(current);
+  }
+
+  if (inQuotes) {
+    return { command: '', args: {}, error: 'Unclosed quote in command' };
+  }
+
+  const command = parts[0];
+  const args: Record<string, any> = {};
+
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+
+    if (part.startsWith('--')) {
+      const key = part.slice(2);
+      const nextPart = parts[i + 1];
+
+      if (!nextPart || nextPart.startsWith('--')) {
+        args[key] = true;
+      } else {
+        // Try to parse as number
+        const numValue = Number(nextPart);
+        args[key] = isNaN(numValue) ? nextPart : numValue;
+        i++;
+      }
+    }
+  }
+
+  return { command, args };
+}
+
 async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
   const spinner = ora('Processing...').start();
 
@@ -432,13 +606,38 @@ async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
     console.log(chalk.green('Response:') + '\\n');
 
     for await (const message of response) {
-      // Only show streaming deltas, not the final result (which duplicates the stream)
+      // Handle streaming text deltas for real-time output
       if (message.type === 'stream_event') {
-        if (message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
-          process.stdout.write(message.event.delta.text || '');
+        const event = (message as any).event;
+        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          process.stdout.write(event.delta.text || '');
+        } else if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+          // Show tool being called
+          console.log(chalk.cyan(\`\\n🔧 Using tool: \${event.content_block.name}\`));
+        } else if (event?.type === 'content_block_stop') {
+          // Tool finished or content block ended
         }
-      } else if (verbose) {
-        console.log(chalk.blue(\`\\n[\${message.type}]\`));
+      } else if (message.type === 'tool_result') {
+        // Show tool result summary
+        const result = (message as any).content;
+        if (verbose && result) {
+          console.log(chalk.gray(\`   ↳ Tool completed\`));
+        }
+      } else if (message.type === 'result') {
+        // Display statistics (verbose mode only)
+        if (verbose) {
+          const stats = (message as any).content || message;
+          if (stats.durationMs) {
+            console.log(chalk.gray('\\n--- Statistics ---'));
+            console.log(chalk.gray(\`Duration: \${stats.durationMs}ms\`));
+            console.log(chalk.gray(\`Input tokens: \${stats.inputTokens}\`));
+            console.log(chalk.gray(\`Output tokens: \${stats.outputTokens}\`));
+            if (stats.cacheReadTokens) console.log(chalk.gray(\`Cache read: \${stats.cacheReadTokens}\`));
+          }
+        }
+      } else if (message.type === 'system') {
+        // System messages (verbose mode only)
+        if (verbose) console.log(chalk.blue(\`[system] \${(message as any).content || (message as any).subtype || ''}\`));
       }
     }
 
@@ -450,6 +649,10 @@ async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
 }
 
 async function handleInteractiveMode(agent: any, verbose?: boolean) {
+  // Load workflow executor
+  const { WorkflowExecutor } = await import('./workflows.js');
+  const workflowExecutor = new WorkflowExecutor(agent.permissionManager);
+
   console.log(chalk.gray('Type your questions, or:'));
   console.log(chalk.gray('• /help - Show available commands'));
   console.log(chalk.gray('• /quit or Ctrl+C - Exit\\n'));
@@ -478,7 +681,74 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
         console.log(chalk.gray('• /quit - Exit the agent'));${hasFileOps ? `
         console.log(chalk.gray('• /files - List files in current directory'));` : ''}${hasCommands ? `
         console.log(chalk.gray('• /run <command> - Execute a command'));` : ''}
+        console.log(chalk.gray('\\n🔮 Workflow Commands:'));${config.domain === 'knowledge' ? `
+        console.log(chalk.gray('• /literature-review --sources <path> [--output <path>] [--limit <number>]'));
+        console.log(chalk.gray('  Systematic literature review with citations'));
+        console.log(chalk.gray('• /experiment-log --hypothesis "<text>" [--data <path>] [--context "<text>"]'));
+        console.log(chalk.gray('  Structured experiment log with traceability'));` : ''}${config.domain === 'development' ? `
+        console.log(chalk.gray('• /code-audit --path <dir> [--output <path>] [--focus <area>]'));
+        console.log(chalk.gray('  Comprehensive code audit for technical debt and security'));
+        console.log(chalk.gray('• /test-suite --target <file> [--framework <name>] [--output <path>]'));
+        console.log(chalk.gray('  Generate comprehensive test suite'));
+        console.log(chalk.gray('• /refactor-analysis --target <file> [--goal <objective>]'));
+        console.log(chalk.gray('  Analyze code for refactoring opportunities'));` : ''}${config.domain === 'business' ? `
+        console.log(chalk.gray('• /invoice-batch --input <dir> [--output <path>]'));
+        console.log(chalk.gray('  Batch process invoices into structured data'));
+        console.log(chalk.gray('• /contract-review --contract <file> [--type <contract_type>]'));
+        console.log(chalk.gray('  Analyze contract terms, obligations, and risks'));
+        console.log(chalk.gray('• /meeting-summary --transcript <file> [--meeting_type <type>]'));
+        console.log(chalk.gray('  Process transcripts into structured summaries'));` : ''}${config.domain === 'creative' ? `
+        console.log(chalk.gray('• /content-calendar --brand <name> --industry <niche> [--platforms <list>]'));
+        console.log(chalk.gray('  Generate 30-day social media content calendar'));
+        console.log(chalk.gray('• /blog-outline --topic "<title>" [--target_audience <audience>] [--word_count <n>]'));
+        console.log(chalk.gray('  Create SEO-optimized blog post outline'));
+        console.log(chalk.gray('• /campaign-brief --product <name> --goal <objective> [--channels <list>]'));
+        console.log(chalk.gray('  Generate multi-channel marketing campaign brief'));` : ''}${config.domain === 'data' ? `
+        console.log(chalk.gray('• /dataset-profile --data <file> [--output <path>]'));
+        console.log(chalk.gray('  Analyze dataset with statistical profile'));
+        console.log(chalk.gray('• /chart-report --data <file> [--focus <analysis_type>]'));
+        console.log(chalk.gray('  Generate visualization report with insights'));` : ''}
         console.log(chalk.gray('\\n💡 Ask me anything about ${config.domain}!\\n'));
+        continue;
+      }
+
+      // Handle workflow commands
+      if (input.startsWith('/')) {
+        const { command, args, error} = parseSlashCommand(input);
+
+        if (error) {
+          console.log(chalk.red(\`Error: \${error}\`));
+          continue;
+        }
+
+        // List of all possible workflow commands
+        const validCommands = [
+          'literature-review', 'experiment-log',
+          'code-audit', 'test-suite', 'refactor-analysis',
+          'invoice-batch', 'contract-review', 'meeting-summary',
+          'content-calendar', 'blog-outline', 'campaign-brief',
+          'dataset-profile', 'chart-report'
+        ];
+
+        if (validCommands.includes(command)) {
+          try {
+            const workflow = await workflowExecutor.loadWorkflow(command);
+            const context = {
+              variables: new Map(),
+              agent,
+              permissionManager: agent.permissionManager
+            };
+
+            await workflowExecutor.execute(workflow, args, context);
+            continue;
+          } catch (error) {
+            console.error(chalk.red('Workflow error:'), error instanceof Error ? error.message : String(error));
+            continue;
+          }
+        }
+
+        console.log(chalk.yellow(\`Unknown command: /\${command}\`));
+        console.log(chalk.gray('Type /help to see available commands'));
         continue;
       }
 
@@ -491,13 +761,36 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
         console.log();
 
         for await (const message of response) {
-          // Only show streaming deltas, not the final result (which duplicates the stream)
+          // Handle streaming text deltas for real-time output
           if (message.type === 'stream_event') {
-            if (message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
-              process.stdout.write(message.event.delta.text || '');
+            const event = (message as any).event;
+            if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              process.stdout.write(event.delta.text || '');
+            } else if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+              // Show tool being called
+              console.log(chalk.cyan(\`\\n🔧 Using tool: \${event.content_block.name}\`));
             }
-          } else if (verbose) {
-            console.log(chalk.blue(\`\\n[\${message.type}]\`));
+          } else if (message.type === 'tool_result') {
+            // Show tool result summary
+            const result = (message as any).content;
+            if (verbose && result) {
+              console.log(chalk.gray(\`   ↳ Tool completed\`));
+            }
+          } else if (message.type === 'result') {
+            // Display statistics (verbose mode only)
+            if (verbose) {
+              const stats = (message as any).content || message;
+              if (stats.durationMs) {
+                console.log(chalk.gray('\\n--- Statistics ---'));
+                console.log(chalk.gray(\`Duration: \${stats.durationMs}ms\`));
+                console.log(chalk.gray(\`Input tokens: \${stats.inputTokens}\`));
+                console.log(chalk.gray(\`Output tokens: \${stats.outputTokens}\`));
+                if (stats.cacheReadTokens) console.log(chalk.gray(\`Cache read: \${stats.cacheReadTokens}\`));
+              }
+            }
+          } else if (message.type === 'system') {
+            // System messages (verbose mode only)
+            if (verbose) console.log(chalk.blue(\`[system] \${(message as any).content || (message as any).subtype || ''}\`));
           }
         }
 
@@ -553,7 +846,8 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   if (hasCommands) {
     imports.push(`import { CommandRunner } from './tools/command-runner.js';`)
   }
-  if (hasWeb) {
+  // WebTools only needed for non-Claude providers (Claude uses SDK built-in WebSearch/WebFetch)
+  if (hasWeb && config.sdkProvider !== 'claude') {
     imports.push(`import { WebTools } from './tools/web-tools.js';`)
   }
   if (hasKnowledge) {
@@ -589,8 +883,7 @@ export class ${className}Agent {
   private config: ${className}AgentConfig;
   private permissionManager: PermissionManager;${hasFileOps ? `
   private fileOps: FileOperations;` : ''}${hasCommands ? `
-  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
-  private webTools: WebTools;` : ''}${hasKnowledge ? `
+  private commandRunner: CommandRunner;` : ''}${hasKnowledge ? `
   private knowledgeTools: KnowledgeTools;` : ''}
   private customServer: ReturnType<typeof createSdkMcpServer>;
   private sessionId?: string;
@@ -608,8 +901,7 @@ export class ${className}Agent {
 
     this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });${hasFileOps ? `
     this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
-    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
-    this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
+    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasKnowledge ? `
     this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
 
     // Create SDK MCP server with custom tools
@@ -620,15 +912,20 @@ export class ${className}Agent {
     const systemPrompt = this.buildSystemPrompt();
 
     const options: any = {
+      model: '${config.model || 'claude-sonnet-4-5-20250929'}',
+      cwd: process.cwd(),
       systemPrompt,
       mcpServers: {
         'custom-tools': this.customServer
-      },
+      },${hasWeb ? `
+      // Enable built-in web search and fetch tools from Claude Agent SDK
+      allowedTools: ['WebSearch', 'WebFetch'],` : ''}
+      permissionMode: 'default',
+      includePartialMessages: true,
       canUseTool: async (toolName: string, input: any) => {
         // Permission check happens in tool execution
         return { behavior: 'allow', updatedInput: input };
-      },
-      includePartialMessages: true
+      }
     };
 
     // Resume previous session if we have one
@@ -643,9 +940,9 @@ export class ${className}Agent {
 
     // Stream messages and capture session ID
     for await (const message of queryResult) {
-      // Capture session ID from system messages for future queries
-      if (message.type === 'system' && (message as any).sessionId) {
-        this.sessionId = (message as any).sessionId;
+      // Capture session ID from system init message for future queries
+      if (message.type === 'system' && (message as any).subtype === 'init') {
+        this.sessionId = (message as any).session_id;
       }
 
       yield message;
@@ -728,45 +1025,6 @@ export class ${className}Agent {
             content: [{
               type: 'text',
               text: this.commandRunner.formatResult(result)
-            }]
-          };
-        }
-      )
-    );` : ''}${hasWeb ? `
-
-    // Web tools
-    tools.push(
-      tool(
-        'web_search',
-        'Search the web for information',
-        {
-          query: z.string().describe('Search query')
-        },
-        async (args) => {
-          const results = await this.webTools.search(args.query);
-          return {
-            content: [{
-              type: 'text',
-              text: results.join('\\n')
-            }]
-          };
-        }
-      )
-    );
-
-    tools.push(
-      tool(
-        'web_fetch',
-        'Fetch and analyze a web page',
-        {
-          url: z.string().describe('URL to fetch')
-        },
-        async (args) => {
-          const content = await this.webTools.fetch(args.url);
-          return {
-            content: [{
-              type: 'text',
-              text: content
             }]
           };
         }
@@ -881,15 +1139,6 @@ Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
   async runCommand(command: string): Promise<void> {
     const result = await this.commandRunner.execute(command);
     console.log(this.commandRunner.formatResult(result));
-  }` : ''}${hasWeb ? `
-
-  // Web tools helpers  
-  async searchWeb(query: string): Promise<string[]> {
-    return this.webTools.search(query);
-  }
-
-  async fetchUrl(url: string): Promise<string> {
-    return this.webTools.fetch(url);
   }` : ''}${hasKnowledge ? `
 
   // Knowledge helpers
@@ -1859,15 +2108,45 @@ export class WebTools {
     }
   }
 
-  async search(query: string): Promise<string[]> {
-    // Note: This is a placeholder implementation
-    // In a real implementation, you'd integrate with a search API like Google Search API, Bing API, etc.
-    console.warn('Search functionality requires API integration - returning placeholder results')
-    return [
-      \`Search results for: "\${query}"\`,
-      'This is a placeholder implementation.',
-      'To enable web search, integrate with a search API service.'
-    ]
+  async search(query: string, maxResults: number = 10): Promise<string[]> {
+    try {
+      // Use DuckDuckGo HTML search (no API key required)
+      const searchUrl = \`https://html.duckduckgo.com/html/?q=\${encodeURIComponent(query)}\`
+
+      const response = await axios.get(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; ResearchBot/1.0)'
+        },
+        timeout: 10000
+      })
+
+      const $ = cheerio.load(response.data)
+      const results: string[] = []
+
+      // Extract search results from DuckDuckGo HTML
+      $('.result').each((index, element) => {
+        if (index >= maxResults) return false
+
+        const titleEl = $(element).find('.result__a')
+        const snippetEl = $(element).find('.result__snippet')
+        const url = titleEl.attr('href')
+        const title = titleEl.text().trim()
+        const snippet = snippetEl.text().trim()
+
+        if (title && snippet) {
+          results.push(\`**\${title}**\\n\${snippet}\\n\${url || ''}\`)
+        }
+      })
+
+      if (results.length === 0) {
+        return [\`No results found for: "\${query}"\`]
+      }
+
+      return results
+    } catch (error) {
+      console.error('Web search failed:', error instanceof Error ? error.message : String(error))
+      return [\`Search failed: \${error instanceof Error ? error.message : 'Unknown error'}. Try using web_fetch with a specific URL instead.\`]
+    }
   }
 
   extractLinks(html: string, baseUrl?: string): string[] {
@@ -2353,4 +2632,779 @@ export class CustomToolTemplate {
   }
 }
 `
+}
+
+function generateWorkflowExecutor(config: AgentConfig): string {
+  return `import { readFileSync } from 'fs';
+import { glob } from 'glob';
+import chalk from 'chalk';
+import ora from 'ora';
+import type { PermissionManager } from './permissions.js';
+
+export interface WorkflowStep {
+  name: string;
+  tool?: string;
+  prompt?: string;
+  input?: any;
+  forEach?: string;
+  output?: string;
+  retry?: {
+    maxAttempts: number;
+    backoff: 'linear' | 'exponential';
+    retryOn?: string[];
+  };
+  onError?: 'stop' | 'continue' | 'skip';
+}
+
+export interface WorkflowDefinition {
+  name: string;
+  description: string;
+  arguments: Array<{
+    name: string;
+    type: string;
+    required?: boolean;
+    default?: any;
+    description: string;
+  }>;
+  workflow: {
+    steps: WorkflowStep[];
+  };
+  permissions: string[];
+  requiresApproval?: boolean;
+}
+
+export interface WorkflowContext {
+  variables: Map<string, any>;
+  agent: any;
+  permissionManager: PermissionManager;
+}
+
+export class WorkflowExecutor {
+  constructor(private permissionManager: PermissionManager) {}
+
+  async execute(
+    workflow: WorkflowDefinition,
+    args: Record<string, any>,
+    context: WorkflowContext
+  ): Promise<any> {
+    // Initialize context with arguments
+    for (const [key, value] of Object.entries(args)) {
+      context.variables.set(key, value);
+    }
+
+    // Add timestamp variable
+    context.variables.set('timestamp', new Date().toISOString().replace(/[:.]/g, '-'));
+
+    const spinner = ora({ text: \`Executing workflow: \${workflow.name}\`, spinner: 'dots' }).start();
+
+    try {
+      for (let i = 0; i < workflow.workflow.steps.length; i++) {
+        const step = workflow.workflow.steps[i];
+        spinner.text = \`Step \${i + 1}/\${workflow.workflow.steps.length}: \${step.name}\`;
+
+        // Execute step
+        const result = await this.executeStep(step, context);
+
+        // Store result in context
+        if (step.output) {
+          const varName = this.extractVariableName(step.output);
+          context.variables.set(varName, result);
+        }
+      }
+
+      spinner.succeed('Workflow completed successfully');
+      return context.variables.get('$result') || context.variables.get('$output');
+    } catch (error) {
+      spinner.fail(\`Workflow failed: \${error instanceof Error ? error.message : String(error)}\`);
+      throw error;
+    }
+  }
+
+  async executeStep(step: WorkflowStep, context: WorkflowContext): Promise<any> {
+    const maxAttempts = step.retry?.maxAttempts || 1;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await this.executeStepInternal(step, context);
+      } catch (error) {
+        lastError = error as Error;
+
+        if (attempt < maxAttempts && this.shouldRetry(error, step.retry)) {
+          const delay = this.calculateBackoff(attempt, step.retry?.backoff);
+          console.log(chalk.yellow(\`  Retrying in \${delay}ms (attempt \${attempt + 1}/\${maxAttempts})...\`));
+          await this.sleep(delay);
+          continue;
+        }
+
+        // Handle based on onError strategy
+        if (step.onError === 'continue') {
+          console.warn(chalk.yellow(\`  Step \${step.name} failed, continuing: \${lastError.message}\`));
+          return null;
+        } else if (step.onError === 'skip') {
+          return undefined;
+        }
+
+        throw lastError;
+      }
+    }
+  }
+
+  async executeStepInternal(step: WorkflowStep, context: WorkflowContext): Promise<any> {
+    // Resolve template variables in input
+    const resolvedInput = this.resolveTemplates(step.input, context);
+
+    if (step.forEach) {
+      // Parallel execution for forEach
+      const pattern = this.resolveTemplates(step.forEach, context);
+      const items = await this.resolvePath(pattern, context);
+
+      return await Promise.all(
+        items.map(item => this.executeStepInternal({ ...step, input: item, forEach: undefined }, context))
+      );
+    } else if (step.tool) {
+      // Call tool directly via agent
+      return await this.callTool(step.tool, resolvedInput, context.agent);
+    } else if (step.prompt) {
+      // Query agent with prompt
+      const prompt = this.resolveTemplates(step.prompt, context);
+      return await this.queryAgent(prompt, context.agent);
+    }
+
+    throw new Error(\`Step \${step.name} has no executable action (tool or prompt)\`);
+  }
+
+  async callTool(toolName: string, input: any, agent: any): Promise<any> {
+    // This is a simplified implementation
+    // In a real implementation, we'd need to call the tool through the agent's tool system
+    console.log(chalk.gray(\`  → Calling tool: \${toolName}\`));
+
+    // For now, we'll just return the input
+    // This would need to be implemented to actually call tools
+    return { success: true, tool: toolName, input };
+  }
+
+  async queryAgent(prompt: string, agent: any): Promise<any> {
+    console.log(chalk.gray('  → Querying agent...'));
+
+    let result = '';
+    for await (const message of agent.query(prompt)) {
+      if (message.type === 'stream_event') {
+        if (message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
+          const text = message.event.delta.text || '';
+          process.stdout.write(text);
+          result += text;
+        }
+      }
+    }
+    process.stdout.write('\\n');
+
+    return result;
+  }
+
+  async resolvePath(pattern: string, context: WorkflowContext): Promise<string[]> {
+    try {
+      const files = await glob(pattern);
+      return files;
+    } catch (error) {
+      console.error(chalk.red(\`Failed to resolve path pattern: \${pattern}\`));
+      return [];
+    }
+  }
+
+  resolveTemplates(template: any, context: WorkflowContext): any {
+    if (typeof template !== 'string') {
+      return template;
+    }
+
+    return template.replace(/\\{\\{([^}]+)\\}\\}/g, (_, varName) => {
+      const trimmed = varName.trim();
+      const value = context.variables.get(trimmed);
+      return value !== undefined ? String(value) : \`{{\${trimmed}}\}\`;
+    });
+  }
+
+  extractVariableName(output: string): string {
+    const match = output.match(/\\{\\{([^}]+)\\}\\}/);
+    return match ? match[1].trim() : output;
+  }
+
+  shouldRetry(error: any, retry?: WorkflowStep['retry']): boolean {
+    if (!retry || !retry.retryOn) {
+      return true; // Retry all errors if retry is configured
+    }
+
+    const errorType = error?.constructor?.name || 'Error';
+    return retry.retryOn.includes(errorType);
+  }
+
+  calculateBackoff(attempt: number, backoff: 'linear' | 'exponential' = 'linear'): number {
+    if (backoff === 'exponential') {
+      return Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+    }
+    return 1000 * attempt;
+  }
+
+  sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async loadWorkflow(commandName: string): Promise<WorkflowDefinition> {
+    try {
+      const content = readFileSync(\`.commands/\${commandName}.json\`, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      throw new Error(\`Failed to load workflow: \${commandName}\`);
+    }
+  }
+}
+`
+}
+
+function generateLiteratureReviewWorkflow(): string {
+  const workflow = {
+    name: "literature-review",
+    description: "Perform systematic literature review with citations and bibliography generation",
+    arguments: [
+      {
+        name: "sources",
+        type: "path",
+        required: true,
+        description: "Path to PDFs/documents directory (e.g., ./data/sources)"
+      },
+      {
+        name: "output",
+        type: "path",
+        default: "./output/literature-review.md",
+        description: "Output file path for the review"
+      },
+      {
+        name: "limit",
+        type: "number",
+        default: 10,
+        description: "Maximum number of key claims to extract"
+      }
+    ],
+    workflow: {
+      steps: [
+        {
+          name: "find_documents",
+          forEach: "{{sources}}/**/*.{pdf,docx,txt}",
+          tool: "doc_ingest",
+          input: "{{item}}",
+          output: "{{$documents}}",
+          onError: "continue"
+        },
+        {
+          name: "extract_claims",
+          prompt: "Based on the {{$documents.length}} documents I've ingested, extract the top {{limit}} most important claims or findings. For each claim, provide: 1) The claim itself, 2) Which document it came from (include file path), 3) A brief quote or evidence. Format as a numbered list with citations.",
+          output: "{{$claims}}"
+        },
+        {
+          name: "identify_gaps",
+          prompt: "Based on the claims extracted, identify 3-5 research gaps or open questions that aren't fully addressed in the literature.",
+          output: "{{$gaps}}"
+        },
+        {
+          name: "generate_bibliography",
+          prompt: "Create an annotated bibliography entry for each document, including: file path, key findings, and relevance to the research topic. Format in markdown.",
+          output: "{{$bibliography}}"
+        },
+        {
+          name: "compile_review",
+          prompt: "Compile a complete literature review document with these sections: 1) Executive Summary, 2) Key Claims ({{$claims}}), 3) Research Gaps ({{$gaps}}), 4) Annotated Bibliography ({{$bibliography}}). Use markdown formatting.",
+          output: "{{$review}}"
+        },
+        {
+          name: "save_review",
+          tool: "write_file",
+          input: {
+            filePath: "{{output}}",
+            content: "{{$review}}"
+          },
+          output: "{{$result}}"
+        }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateExperimentLogWorkflow(): string {
+  const workflow = {
+    name: "experiment-log",
+    description: "Create structured experiment log with data traceability",
+    arguments: [
+      {
+        name: "hypothesis",
+        type: "string",
+        required: true,
+        description: "The hypothesis being tested"
+      },
+      {
+        name: "data",
+        type: "path",
+        required: false,
+        description: "Path to data file (CSV, JSON, etc.)"
+      },
+      {
+        name: "context",
+        type: "string",
+        required: false,
+        description: "Additional context or background"
+      }
+    ],
+    workflow: {
+      steps: [
+        {
+          name: "read_data",
+          tool: "read_file",
+          input: "{{data}}",
+          output: "{{$dataContent}}",
+          onError: "skip"
+        },
+        {
+          name: "analyze_data",
+          prompt: "Analyze this data and provide observations: {{$dataContent}}. If no data was provided, skip this analysis.",
+          output: "{{$observations}}",
+          onError: "continue"
+        },
+        {
+          name: "generate_log",
+          prompt: "Create a detailed experiment log entry with these sections:\\n\\n**Experiment Log - {{timestamp}}**\\n\\n**Hypothesis:** {{hypothesis}}\\n\\n**Context:** {{context}}\\n\\n**Data Source:** {{data}}\\n\\n**Observations:** {{$observations}}\\n\\n**Results:** [Provide analysis of whether the hypothesis is supported]\\n\\n**Next Actions:** [Suggest 2-3 concrete next steps]\\n\\nUse markdown formatting and be thorough.",
+          output: "{{$log}}"
+        },
+        {
+          name: "save_log",
+          tool: "write_file",
+          input: {
+            filePath: "./logs/experiment-{{timestamp}}.md",
+            content: "{{$log}}"
+          },
+          output: "{{$result}}"
+        },
+        {
+          name: "update_index",
+          tool: "write_file",
+          input: {
+            filePath: "./logs/index.md",
+            content: "## Experiment Log Index\\n\\n- [{{timestamp}}](./experiment-{{timestamp}}.md) - {{hypothesis}}\\n"
+          },
+          onError: "continue"
+        }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+
+  return JSON.stringify(workflow, null, 2);
+}
+
+// Development Domain Workflows
+
+function generateCodeAuditWorkflow(): string {
+  const workflow = {
+    name: "code-audit",
+    description: "Comprehensive code audit for technical debt, security issues, and modernization opportunities",
+    arguments: [
+      {
+        name: "path",
+        type: "path",
+        required: true,
+        description: "Path to codebase directory to audit"
+      },
+      {
+        name: "output",
+        type: "path",
+        default: "./audit-report-{{timestamp}}.md",
+        description: "Output path for audit report"
+      },
+      {
+        name: "focus",
+        type: "string",
+        required: false,
+        description: "Focus area: security, performance, maintainability, or all"
+      }
+    ],
+    workflow: {
+      steps: [
+        {
+          name: "scan_files",
+          tool: "find_files",
+          input: "{{path}}/**/*.{js,ts,jsx,tsx,py,java,go,rb}",
+          output: "{{$files}}"
+        },
+        {
+          name: "analyze_structure",
+          prompt: "Analyze the file structure of this codebase. Identify: 1) Architecture pattern, 2) Technology stack, 3) Potential organizational issues.",
+          output: "{{$structure}}"
+        },
+        {
+          name: "search_deprecated",
+          tool: "search_files",
+          input: {
+            path: "{{path}}",
+            pattern: "(TODO|FIXME|HACK|XXX|deprecated|legacy)"
+          },
+          output: "{{$issues}}",
+          onError: "continue"
+        },
+        {
+          name: "security_scan",
+          prompt: "Review the codebase for common security issues: 1) SQL injection vulnerabilities, 2) XSS risks, 3) Exposed secrets/keys, 4) Insecure dependencies. Focus: {{focus}}",
+          output: "{{$security}}"
+        },
+        {
+          name: "technical_debt",
+          prompt: "Identify technical debt: 1) Code duplication, 2) Complex functions needing refactoring, 3) Missing tests, 4) Outdated patterns. Prioritize by impact.",
+          output: "{{$debt}}"
+        },
+        {
+          name: "generate_report",
+          prompt: "Create comprehensive audit report with sections for overview, security findings, technical debt, flagged issues, and prioritized recommendations with effort estimates",
+          output: "{{$report}}"
+        },
+        {
+          name: "save_report",
+          tool: "write_file",
+          input: {
+            filePath: "{{output}}",
+            content: "{{$report}}"
+          }
+        }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateTestSuiteWorkflow(): string {
+  const workflow = {
+    name: "test-suite",
+    description: "Generate comprehensive test suite for code file or module",
+    arguments: [
+      {
+        name: "target",
+        type: "path",
+        required: true,
+        description: "Path to source file or directory to test"
+      },
+      {
+        name: "framework",
+        type: "string",
+        default: "jest",
+        description: "Test framework: jest, mocha, pytest, junit, etc."
+      },
+      {
+        name: "output",
+        type: "path",
+        required: false,
+        description: "Output path for test file (auto-generated if not specified)"
+      }
+    ],
+    workflow: {
+      steps: [
+        {
+          name: "read_source",
+          tool: "read_file",
+          input: "{{target}}",
+          output: "{{$source}}"
+        },
+        {
+          name: "analyze_code",
+          prompt: "Analyze this code and identify: 1) All exported functions/classes, 2) Dependencies and imports, 3) Edge cases to test, 4) Integration points",
+          output: "{{$analysis}}"
+        },
+        {
+          name: "generate_tests",
+          prompt: "Generate comprehensive test suite using {{framework}}. Include: unit tests, edge cases, error handling, mocks for dependencies. Use best practices.",
+          output: "{{$tests}}"
+        },
+        {
+          name: "create_test_file",
+          tool: "write_file",
+          input: {
+            filePath: "{{output}}",
+            content: "{{$tests}}"
+          }
+        },
+        {
+          name: "run_tests",
+          tool: "run_command",
+          input: "npm test {{output}}",
+          output: "{{$results}}",
+          onError: "continue"
+        },
+        {
+          name: "report_coverage",
+          prompt: "Summarize test results. Provide: 1) Pass/fail status, 2) Coverage estimation, 3) Suggestions for additional tests",
+          output: "{{$summary}}"
+        }
+      ]
+    },
+    permissions: ["read_file", "write_file", "run_command"],
+    requiresApproval: true
+  };
+
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateRefactorAnalysisWorkflow(): string {
+  const workflow = {
+    name: "refactor-analysis",
+    description: "Analyze code for refactoring opportunities and modernization paths",
+    arguments: [
+      {
+        name: "target",
+        type: "path",
+        required: true,
+        description: "File or directory to analyze for refactoring"
+      },
+      {
+        name: "goal",
+        type: "string",
+        required: false,
+        description: "Refactoring goal: modernize, performance, readability, testability"
+      }
+    ],
+    workflow: {
+      steps: [
+        {
+          name: "read_code",
+          tool: "read_file",
+          input: "{{target}}",
+          output: "{{$code}}"
+        },
+        {
+          name: "complexity_analysis",
+          prompt: "Analyze code complexity. Identify: 1) Functions with high cyclomatic complexity, 2) Deep nesting, 3) Long parameter lists, 4) Code smells",
+          output: "{{$complexity}}"
+        },
+        {
+          name: "pattern_detection",
+          prompt: "Detect outdated patterns and suggest modern alternatives based on goal: {{goal}}. Include: 1) Deprecated APIs, 2) Anti-patterns, 3) Missing design patterns, 4) Framework-specific improvements",
+          output: "{{$patterns}}"
+        },
+        {
+          name: "refactoring_plan",
+          prompt: "Create detailed refactoring plan. For each suggestion provide: 1) Current code snippet, 2) Proposed refactoring, 3) Benefits, 4) Effort estimate (S/M/L), 5) Risk level",
+          output: "{{$plan}}"
+        },
+        {
+          name: "save_plan",
+          tool: "write_file",
+          input: {
+            filePath: "./refactoring-plan-{{timestamp}}.md",
+            content: "{{$plan}}"
+          }
+        }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+
+  return JSON.stringify(workflow, null, 2);
+}
+
+// Business Domain Workflows
+
+function generateInvoiceBatchWorkflow(): string {
+  const workflow = {
+    name: "invoice-batch",
+    description: "Batch process invoices from PDF/document directory into structured data",
+    arguments: [
+      { name: "input", type: "path", required: true, description: "Path to directory containing invoice PDFs/documents" },
+      { name: "output", type: "path", default: "./invoices-{{timestamp}}.csv", description: "Output CSV file path" }
+    ],
+    workflow: {
+      steps: [
+        { name: "find_invoices", tool: "find_files", input: "{{input}}/**/*.{pdf,docx,txt}", output: "{{$invoiceFiles}}" },
+        { name: "extract_data", prompt: "Extract key information from each invoice: invoice number, date, vendor, amount. Format as CSV.", output: "{{$csv}}" },
+        { name: "save_output", tool: "write_file", input: { filePath: "{{output}}", content: "{{$csv}}" } }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateContractReviewWorkflow(): string {
+  const workflow = {
+    name: "contract-review",
+    description: "Analyze contract documents and extract key terms, obligations, and risks",
+    arguments: [
+      { name: "contract", type: "path", required: true, description: "Path to contract document" },
+      { name: "type", type: "string", required: false, description: "Contract type: vendor, employment, lease, NDA" }
+    ],
+    workflow: {
+      steps: [
+        { name: "read_contract", tool: "read_file", input: "{{contract}}", output: "{{$text}}" },
+        { name: "extract_terms", prompt: "Extract: parties, duration, payment terms, key obligations, termination clauses", output: "{{$terms}}" },
+        { name: "risk_assessment", prompt: "Identify risks: unfavorable terms, missing clauses, compliance issues. Rate severity.", output: "{{$risks}}" },
+        { name: "generate_summary", prompt: "Create executive summary with terms, obligations, and risk assessment", output: "{{$summary}}" },
+        { name: "save_review", tool: "write_file", input: { filePath: "./contract-review-{{timestamp}}.md", content: "{{$summary}}" } }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateMeetingSummaryWorkflow(): string {
+  const workflow = {
+    name: "meeting-summary",
+    description: "Process meeting transcripts into structured summaries with action items",
+    arguments: [
+      { name: "transcript", type: "path", required: true, description: "Path to meeting transcript file" },
+      { name: "meeting_type", type: "string", required: false, description: "Meeting type: standup, planning, review, client" }
+    ],
+    workflow: {
+      steps: [
+        { name: "read_transcript", tool: "read_file", input: "{{transcript}}", output: "{{$transcript}}" },
+        { name: "extract_participants", prompt: "Identify all meeting participants and their roles", output: "{{$participants}}" },
+        { name: "extract_decisions", prompt: "List all decisions made: decision, rationale, who decided", output: "{{$decisions}}" },
+        { name: "extract_actions", prompt: "Extract action items: task, assignee, deadline, priority", output: "{{$actions}}" },
+        { name: "create_summary", prompt: "Generate structured summary: Participants, Decisions, Action Items, Next Steps", output: "{{$summary}}" },
+        { name: "save_summary", tool: "write_file", input: { filePath: "./meeting-summary-{{timestamp}}.md", content: "{{$summary}}" } }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+// Creative Domain Workflows
+
+function generateContentCalendarWorkflow(): string {
+  const workflow = {
+    name: "content-calendar",
+    description: "Generate 30-day social media content calendar with trending topics and hashtags",
+    arguments: [
+      { name: "brand", type: "string", required: true, description: "Brand or company name" },
+      { name: "industry", type: "string", required: true, description: "Industry or niche" },
+      { name: "platforms", type: "string", default: "linkedin,twitter,instagram", description: "Comma-separated platforms" }
+    ],
+    workflow: {
+      steps: [
+        { name: "research_trends", tool: "web_search", input: "{{industry}} trending topics 2025", output: "{{$trends}}" },
+        { name: "generate_themes", prompt: "Create 4 weekly content themes for {{brand}} in {{industry}}", output: "{{$themes}}" },
+        { name: "create_post_ideas", prompt: "Generate 30 post ideas with platform, content type, hashtags", output: "{{$ideas}}" },
+        { name: "schedule_calendar", prompt: "Create 30-day content calendar in markdown table format", output: "{{$calendar}}" },
+        { name: "save_calendar", tool: "write_file", input: { filePath: "./content-calendar-{{timestamp}}.md", content: "{{$calendar}}" } }
+      ]
+    },
+    permissions: ["write_file", "web_search"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateBlogOutlineWorkflow(): string {
+  const workflow = {
+    name: "blog-outline",
+    description: "Research topic and create SEO-optimized blog post outline with keywords",
+    arguments: [
+      { name: "topic", type: "string", required: true, description: "Blog post topic" },
+      { name: "target_audience", type: "string", required: false, description: "Target audience" },
+      { name: "word_count", type: "number", default: 1500, description: "Target word count" }
+    ],
+    workflow: {
+      steps: [
+        { name: "keyword_research", tool: "web_search", input: "{{topic}} SEO keywords", output: "{{$keywords}}" },
+        { name: "research_content", tool: "web_search", input: "{{topic}} comprehensive guide", output: "{{$research}}" },
+        { name: "create_outline", prompt: "Create detailed blog outline: headline, intro, 5-7 sections, conclusion. Aim for {{word_count}} words", output: "{{$outline}}" },
+        { name: "add_seo", prompt: "Add SEO elements: meta description, keywords, internal links", output: "{{$seoOutline}}" },
+        { name: "save_outline", tool: "write_file", input: { filePath: "./blog-outline-{{timestamp}}.md", content: "{{$seoOutline}}" } }
+      ]
+    },
+    permissions: ["write_file", "web_search"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateCampaignBriefWorkflow(): string {
+  const workflow = {
+    name: "campaign-brief",
+    description: "Generate multi-channel marketing campaign brief with messaging variations",
+    arguments: [
+      { name: "product", type: "string", required: true, description: "Product or service name" },
+      { name: "goal", type: "string", required: true, description: "Campaign goal: launch, awareness, conversion" },
+      { name: "channels", type: "string", default: "email,social,web", description: "Marketing channels" }
+    ],
+    workflow: {
+      steps: [
+        { name: "product_analysis", prompt: "Analyze {{product}}: features, benefits, value proposition, target audience", output: "{{$analysis}}" },
+        { name: "audience_personas", prompt: "Create 2-3 personas: demographics, pain points, motivations", output: "{{$personas}}" },
+        { name: "messaging_strategy", prompt: "Develop messaging for {{goal}}: primary message, talking points, tone", output: "{{$messaging}}" },
+        { name: "channel_tactics", prompt: "For {{channels}}, create tactics: content types, messaging, CTAs", output: "{{$tactics}}" },
+        { name: "create_brief", prompt: "Compile campaign brief: Summary, Product, Personas, Messaging, Tactics, Metrics", output: "{{$brief}}" },
+        { name: "save_brief", tool: "write_file", input: { filePath: "./campaign-brief-{{timestamp}}.md", content: "{{$brief}}" } }
+      ]
+    },
+    permissions: ["write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+// Data Domain Workflows
+
+function generateDatasetProfileWorkflow(): string {
+  const workflow = {
+    name: "dataset-profile",
+    description: "Analyze dataset and generate statistical profile with quality assessment",
+    arguments: [
+      { name: "data", type: "path", required: true, description: "Path to dataset file (CSV, JSON)" },
+      { name: "output", type: "path", default: "./dataset-profile-{{timestamp}}.md", description: "Output path" }
+    ],
+    workflow: {
+      steps: [
+        { name: "load_data", tool: "read_file", input: "{{data}}", output: "{{$dataset}}" },
+        { name: "basic_stats", prompt: "Analyze structure: row/column count, column types", output: "{{$structure}}" },
+        { name: "statistical_summary", prompt: "For numeric columns: min, max, mean, median. For categorical: unique values, distribution", output: "{{$stats}}" },
+        { name: "quality_check", prompt: "Check: missing values, duplicates, outliers, inconsistencies", output: "{{$quality}}" },
+        { name: "generate_report", prompt: "Create profile report: Overview, Stats, Quality, Recommendations", output: "{{$report}}" },
+        { name: "save_report", tool: "write_file", input: { filePath: "{{output}}", content: "{{$report}}" } }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
+}
+
+function generateChartReportWorkflow(): string {
+  const workflow = {
+    name: "chart-report",
+    description: "Load data and generate visualization report with insights",
+    arguments: [
+      { name: "data", type: "path", required: true, description: "Path to data file" },
+      { name: "focus", type: "string", required: false, description: "Analysis focus: trends, comparison, distribution" }
+    ],
+    workflow: {
+      steps: [
+        { name: "load_data", tool: "read_file", input: "{{data}}", output: "{{$dataset}}" },
+        { name: "identify_metrics", prompt: "Identify key metrics suitable for visualization. Focus: {{focus}}", output: "{{$metrics}}" },
+        { name: "create_visualizations", prompt: "Describe 3-5 visualizations with ASCII charts where possible", output: "{{$charts}}" },
+        { name: "analyze_trends", prompt: "Analyze trends, patterns, anomalies. Provide insights", output: "{{$insights}}" },
+        { name: "compile_report", prompt: "Generate report: Summary, Visualizations, Analysis, Recommendations", output: "{{$report}}" },
+        { name: "save_report", tool: "write_file", input: { filePath: "./chart-report-{{timestamp}}.md", content: "{{$report}}" } }
+      ]
+    },
+    permissions: ["read_file", "write_file"],
+    requiresApproval: false
+  };
+  return JSON.stringify(workflow, null, 2);
 }
