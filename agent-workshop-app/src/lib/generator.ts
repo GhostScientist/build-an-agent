@@ -105,21 +105,15 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     template: '.env.example'
   })
 
-  // Sample workflows and data (local-first)
+  // Generate .gitignore
   files.push({
-    path: 'workflows/literature_review.md',
-    content: generateLiteratureWorkflow(),
-    type: 'markdown',
-    template: 'workflows/literature_review.md'
+    path: '.gitignore',
+    content: generateGitignore(config),
+    type: 'shell',
+    template: '.gitignore'
   })
 
-  files.push({
-    path: 'workflows/experiment_log.md',
-    content: generateExperimentLog(),
-    type: 'markdown',
-    template: 'workflows/experiment_log.md'
-  })
-
+  // Sample data files (local-first)
   files.push({
     path: 'data/sample-notes.md',
     content: sampleNotes(),
@@ -350,9 +344,10 @@ function generatePackageJson(config: AgentConfig): string {
 function getDependencies(config: AgentConfig): Record<string, string> {
   const baseDeps: Record<string, string> = {
     'commander': '^12.0.0',
-    'chalk': '^5.3.0', 
+    'chalk': '^5.3.0',
     'ora': '^8.0.1',
-    'inquirer': '^9.2.12'
+    'inquirer': '^9.2.12',
+    'dotenv': '^16.3.1'
   }
   
   // Add SDK-specific dependencies
@@ -440,6 +435,7 @@ function generateCLI(config: AgentConfig, enabledTools: AgentConfig['tools']): s
 
   return `#!/usr/bin/env node
 
+import 'dotenv/config';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -459,7 +455,6 @@ program
 program
   .command('config')
   .description('Configure the agent')
-  .option('--api-key <key>', 'Set API key')
   .option('--show', 'Show current configuration')
   .action(async (options) => {
     const configManager = new ConfigManager();
@@ -469,29 +464,16 @@ program
       const config = configManager.get();
       console.log(chalk.cyan('\\n📋 Current Configuration:'));
       console.log(chalk.gray('API Key:'), config.apiKey ? '***' + config.apiKey.slice(-4) : chalk.red('Not set'));
+      console.log(chalk.gray('Source:'), process.env.${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY ? 'Environment variable' : 'Config file');
       return;
     }
 
-    if (options.apiKey) {
-      await configManager.save({ apiKey: options.apiKey });
-      console.log(chalk.green('✅ API key saved successfully'));
-      return;
-    }
-
-    // Interactive config setup
-    const { apiKey } = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'apiKey',
-        message: 'Enter your API key:',
-        mask: '*'
-      }
-    ]);
-
-    if (apiKey) {
-      await configManager.save({ apiKey });
-      console.log(chalk.green('✅ API key saved successfully'));
-    }
+    console.log(chalk.yellow('\\n🔐 API Key Configuration\\n'));
+    console.log(chalk.white('To configure your API key, create a .env file in the project root:\\n'));
+    console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env\\n'));
+    console.log(chalk.white('Or set the environment variable directly:\\n'));
+    console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here\\n'));
+    console.log(chalk.cyan('Tip: Copy .env.example to .env and fill in your API key.'));
   });
 
 program
@@ -504,8 +486,11 @@ program
       const config = await configManager.load();
 
       if (!configManager.hasApiKey()) {
-        console.log(chalk.red('❌ No API key found. Please configure your API key first:'));
-        console.log(chalk.yellow('   ${config.projectName} config --api-key YOUR_API_KEY'));
+        console.log(chalk.red('❌ No API key found.'));
+        console.log(chalk.yellow('\\nCreate a .env file with your API key:'));
+        console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env'));
+        console.log(chalk.yellow('\\nOr set the environment variable:'));
+        console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here'));
         process.exit(1);
       }
 
@@ -1875,21 +1860,42 @@ import { PermissionManager } from '../permissions.js'
 
 export class FileOperations {
   private permissionManager: PermissionManager;
+  private baseDir: string;
 
-  constructor(permissionManager: PermissionManager) {
+  constructor(permissionManager: PermissionManager, baseDir: string = process.cwd()) {
     this.permissionManager = permissionManager;
+    this.baseDir = resolve(baseDir);
+  }
+
+  /**
+   * Validates that a path is within the allowed base directory.
+   * Prevents directory traversal attacks and access outside sandbox.
+   */
+  private validatePath(filePath: string): string {
+    const absolutePath = resolve(this.baseDir, filePath);
+    // Ensure path is within baseDir (prevent directory traversal)
+    if (!absolutePath.startsWith(this.baseDir + '/') && absolutePath !== this.baseDir) {
+      throw new Error(\`Access denied: Path "\${filePath}" is outside the allowed directory "\${this.baseDir}"\`);
+    }
+    return absolutePath;
   }
 
   async readFile(filePath: string): Promise<string> {
     try {
-      const absolutePath = resolve(filePath)
-      return await readFile(absolutePath, 'utf-8')
+      const safePath = this.validatePath(filePath);
+      return await readFile(safePath, 'utf-8')
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Access denied:')) {
+        throw error;
+      }
       throw new Error(\`Failed to read file \${filePath}: \${error instanceof Error ? error.message : String(error)}\`)
     }
   }
 
   async writeFile(filePath: string, content: string): Promise<void> {
+    // Validate path first (before permission check)
+    const safePath = this.validatePath(filePath);
+
     // Request permission before writing
     const permission = await this.permissionManager.requestPermission({
       action: 'write_file',
@@ -1902,8 +1908,7 @@ export class FileOperations {
     }
 
     try {
-      const absolutePath = resolve(filePath)
-      await writeFile(absolutePath, content, 'utf-8')
+      await writeFile(safePath, content, 'utf-8')
     } catch (error) {
       throw new Error(\`Failed to write file \${filePath}: \${error instanceof Error ? error.message : String(error)}\`)
     }
@@ -1911,29 +1916,48 @@ export class FileOperations {
 
   async fileExists(filePath: string): Promise<boolean> {
     try {
-      const absolutePath = resolve(filePath)
-      await access(absolutePath)
+      const safePath = this.validatePath(filePath);
+      await access(safePath)
       return true
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Access denied:')) {
+        throw error;
+      }
       return false
     }
   }
 
   async listFiles(dirPath: string): Promise<string[]> {
     try {
-      const absolutePath = resolve(dirPath)
-      const entries = await readdir(absolutePath, { withFileTypes: true })
+      const safePath = this.validatePath(dirPath);
+      const entries = await readdir(safePath, { withFileTypes: true })
       return entries
         .filter(entry => entry.isFile())
         .map(entry => entry.name)
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Access denied:')) {
+        throw error;
+      }
       throw new Error(\`Failed to list files in \${dirPath}: \${error instanceof Error ? error.message : String(error)}\`)
     }
   }
 
-  async findFiles(pattern: string, cwd: string = process.cwd()): Promise<string[]> {
+  async findFiles(pattern: string, cwd?: string): Promise<string[]> {
+    // Block directory traversal patterns
+    if (pattern.includes('..')) {
+      throw new Error('Access denied: Path traversal patterns (..) not allowed');
+    }
+
+    // Always use baseDir as root, ignore cwd parameter for security
     try {
-      return await glob(pattern, { cwd, absolute: true })
+      const results = await glob(pattern, {
+        cwd: this.baseDir,
+        absolute: true,
+        ignore: ['node_modules/**', '.git/**']
+      });
+
+      // Double-check all results are within baseDir
+      return results.filter(p => p.startsWith(this.baseDir + '/') || p === this.baseDir);
     } catch (error) {
       throw new Error(\`Failed to find files matching \${pattern}: \${error instanceof Error ? error.message : String(error)}\`)
     }
@@ -1941,14 +1965,17 @@ export class FileOperations {
 
   async getFileStats(filePath: string): Promise<{ size: number; modified: Date; isDirectory: boolean }> {
     try {
-      const absolutePath = resolve(filePath)
-      const stats = await stat(absolutePath)
+      const safePath = this.validatePath(filePath);
+      const stats = await stat(safePath)
       return {
         size: stats.size,
         modified: stats.mtime,
         isDirectory: stats.isDirectory()
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Access denied:')) {
+        throw error;
+      }
       throw new Error(\`Failed to get stats for \${filePath}: \${error instanceof Error ? error.message : String(error)}\`)
     }
   }
@@ -2343,13 +2370,14 @@ npm run build
 
 ## Configuration
 
-Set up your API key:
+Set up your API key by creating a \`.env\` file:
 
 \`\`\`bash
-${config.projectName} config --api-key YOUR_API_KEY
+cp .env.example .env
+# Edit .env and add your API key
 \`\`\`
 
-Or set environment variable:
+Or set the environment variable directly:
 \`\`\`bash
 export ${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
 \`\`\`
@@ -2497,6 +2525,45 @@ LOG_LEVEL=info
 `
 }
 
+function generateGitignore(config: AgentConfig): string {
+  return `# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Audit logs (may contain sensitive operation details)
+audit.log
+
+# Agent config directory (may contain cached API keys)
+.${config.projectName}/
+`
+}
+
 function generatePublishScript(config: AgentConfig): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
@@ -2561,39 +2628,6 @@ main().catch((error) => {
   console.error(error)
   process.exit(1)
 })
-`
-}
-
-function generateLiteratureWorkflow(): string {
-  return `# Literature Review Workflow (Local)
-
-1) Drop your PDFs/DOCX/TXT into ./data/sources
-2) Run the agent with prompts like:
-   - "Ingest the PDFs in ./data/sources and summarize the top 5 claims with citations."
-3) Use tools:
-   - doc_ingest: read documents and capture source paths
-   - table_extract: pull tables into CSV/JSON
-   - source_notes: append annotated notes to ./data/notes.md
-   - local_retrieval: search notes for grounded snippets
-4) Ask the agent to produce:
-   - Annotated bibliography (with file paths as citations)
-   - Gaps/open questions
-   - Next-read recommendations
-`
-}
-
-function generateExperimentLog(): string {
-  return `# Experiment Log Template (Local)
-
-- Date:
-- Hypothesis:
-- Context:
-- Procedure:
-- Observations:
-- Results:
-- Next Actions:
-
-Use source_notes to append findings with paths to raw data for traceability.
 `
 }
 
