@@ -1,6 +1,6 @@
 export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge' | 'custom'
 
-export type SDKProvider = 'claude' | 'openai' | 'anthropic-direct' | 'custom'
+export type SDKProvider = 'claude' | 'openai'
 
 export type AgentInterface = 'cli' | 'web' | 'api' | 'discord' | 'slack'
 

@@ -127,6 +127,21 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     template: 'LICENSE'
   })
 
+  // Planning mode support
+  files.push({
+    path: 'src/planner.ts',
+    content: generatePlanManager(config),
+    type: 'typescript',
+    template: 'src/planner.ts'
+  })
+
+  files.push({
+    path: '.plans/.gitkeep',
+    content: '# This directory stores plan files\n# Plans can be created with /plan <query> or --plan flag\n',
+    type: 'shell',
+    template: '.plans/.gitkeep'
+  })
+
   // Workflow support files
   files.push({
     path: 'src/workflows.ts',
@@ -359,9 +374,6 @@ function getDependencies(config: AgentConfig): Record<string, string> {
       baseDeps['@openai/agents'] = '^0.1.0'
       baseDeps['zod'] = '^3.0.0'
       break
-    case 'anthropic-direct':
-      baseDeps['@anthropic-ai/sdk'] = '^0.71.0'
-      break
   }
   
   // Add tool-specific dependencies
@@ -444,6 +456,7 @@ import inquirer from 'inquirer';
 import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
+import { PlanManager, formatAge, type Plan, type PlanStep } from './planner.js';
 
 // Load .env from current working directory (supports global installation)
 const workingDir = process.cwd();
@@ -485,7 +498,8 @@ program
   .argument('[query]', 'Direct query to the agent')
   .option('-i, --interactive', 'Start interactive session')
   .option('-v, --verbose', 'Verbose output')
-  .action(async (query?: string, options?: { interactive?: boolean; verbose?: boolean }) => {
+  .option('-p, --plan', 'Planning mode - create plan before executing')
+  .action(async (query?: string, options?: { interactive?: boolean; verbose?: boolean; plan?: boolean }) => {
     try {
       const configManager = new ConfigManager();
       const config = await configManager.load();
@@ -510,10 +524,13 @@ program
       console.log(chalk.gray('${config.description || 'AI Agent for ' + config.domain}'));
       console.log(chalk.gray(\`📁 Working directory: \${workingDir}\\n\`));
 
-      if (query) {
+      if (query && options?.plan) {
+        // Planning mode with query
+        await handlePlanningMode(agent, query, permissionManager);
+      } else if (query) {
         await handleSingleQuery(agent, query, options?.verbose);
       } else {
-        await handleInteractiveMode(agent, options?.verbose);
+        await handleInteractiveMode(agent, permissionManager, options?.verbose);
       }
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
@@ -639,13 +656,15 @@ async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
   }
 }
 
-async function handleInteractiveMode(agent: any, verbose?: boolean) {
+async function handleInteractiveMode(agent: any, permissionManager: PermissionManager, verbose?: boolean) {
   // Load workflow executor
   const { WorkflowExecutor } = await import('./workflows.js');
   const workflowExecutor = new WorkflowExecutor(agent.permissionManager);
+  const planManager = new PlanManager();
 
   console.log(chalk.gray('Type your questions, or:'));
   console.log(chalk.gray('• /help - Show available commands'));
+  console.log(chalk.gray('• /plan <query> - Create a plan before executing'));
   console.log(chalk.gray('• /quit or Ctrl+C - Exit\\n'));
 
   while (true) {
@@ -672,6 +691,12 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
         console.log(chalk.gray('• /quit - Exit the agent'));${hasFileOps ? `
         console.log(chalk.gray('• /files - List files in current directory'));` : ''}${hasCommands ? `
         console.log(chalk.gray('• /run <command> - Execute a command'));` : ''}
+        console.log(chalk.gray('\\n📋 Planning Commands:'));
+        console.log(chalk.gray('• /plan <query> - Create a plan for a task'));
+        console.log(chalk.gray('• /plans - List all pending plans'));
+        console.log(chalk.gray('• /execute <num> - Execute plan by number'));
+        console.log(chalk.gray('• /plan-delete <num|all|all-completed> - Delete plans'));
+        console.log(chalk.gray('• <number> - Quick shortcut to execute plan by number'));
         console.log(chalk.gray('\\n🔮 Workflow Commands:'));${config.domain === 'knowledge' ? `
         console.log(chalk.gray('• /literature-review --sources <path> [--output <path>] [--limit <number>]'));
         console.log(chalk.gray('  Systematic literature review with citations'));
@@ -700,6 +725,37 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
         console.log(chalk.gray('• /chart-report --data <file> [--focus <analysis_type>]'));
         console.log(chalk.gray('  Generate visualization report with insights'));` : ''}
         console.log(chalk.gray('\\n💡 Ask me anything about ${config.domain}!\\n'));
+        continue;
+      }
+
+      // Handle planning commands
+      if (input.startsWith('/plan ')) {
+        const query = input.slice(6).trim();
+        await handlePlanningMode(agent, query, permissionManager);
+        continue;
+      }
+
+      if (input === '/plans') {
+        await listPlans(planManager);
+        continue;
+      }
+
+      if (input.startsWith('/execute ')) {
+        const arg = input.slice(9).trim();
+        await executePlanByRef(arg, agent, permissionManager, planManager);
+        continue;
+      }
+
+      if (input.startsWith('/plan-delete ')) {
+        const arg = input.slice(13).trim();
+        await deletePlanByRef(arg, planManager);
+        continue;
+      }
+
+      // Quick shortcut: just type a number to execute that plan
+      if (/^\\d+$/.test(input.trim())) {
+        const planNum = parseInt(input.trim());
+        await executePlanByNumber(planNum, agent, permissionManager, planManager);
         continue;
       }
 
@@ -800,6 +856,326 @@ async function handleInteractiveMode(agent: any, verbose?: boolean) {
   }
 }
 
+// Planning mode helper functions
+async function handlePlanningMode(agent: any, query: string, pm: PermissionManager) {
+  const planManager = new PlanManager();
+
+  console.log(chalk.cyan('\\n📋 Planning Mode'));
+  console.log(chalk.gray('Analyzing: ' + query + '\\n'));
+
+  const spinner = ora('Creating plan...').start();
+
+  try {
+    // Query the agent in planning mode to analyze and create a plan
+    const planPrompt = \`You are in PLANNING MODE. Analyze this request and create a structured plan.
+
+REQUEST: \${query}
+
+Create a plan with the following format:
+1. A brief summary (1 sentence)
+2. Your analysis of what needs to be done
+3. Step-by-step actions with risk assessment
+4. Rollback strategy if something goes wrong
+
+Output your plan in this exact format:
+
+SUMMARY: [one sentence describing what will be accomplished]
+
+ANALYSIS:
+[what you discovered and your approach]
+
+STEPS:
+1. [Step Name] | Action: [read/write/edit/command/query] | Target: [file or command] | Purpose: [why] | Risk: [low/medium/high]
+2. [Next step...]
+
+ROLLBACK:
+- [How to undo if needed]
+- [Additional recovery steps]\`;
+
+    let planText = '';
+    const response = agent.query(planPrompt);
+
+    for await (const message of response) {
+      if (message.type === 'stream_event') {
+        const event = (message as any).event;
+        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          planText += event.delta.text || '';
+        }
+      }
+    }
+
+    spinner.stop();
+
+    // Parse the plan response
+    const plan = parsePlanResponse(planText, query, planManager);
+
+    // Display plan
+    displayPlan(plan);
+
+    // Save plan
+    const planPath = await planManager.savePlan(plan);
+    console.log(chalk.gray('\\nPlan saved: ' + planPath));
+
+    // Prompt for action
+    const { action } = await inquirer.prompt([{
+      type: 'list',
+      name: 'action',
+      message: 'What would you like to do?',
+      choices: [
+        { name: 'Execute now', value: 'execute' },
+        { name: 'Edit plan first (opens in editor)', value: 'edit' },
+        { name: 'Save for later', value: 'save' },
+        { name: 'Discard', value: 'discard' }
+      ]
+    }]);
+
+    if (action === 'execute') {
+      await executePlan(plan, agent, pm, planManager);
+    } else if (action === 'edit') {
+      console.log(chalk.yellow('\\nEdit: ' + planPath));
+      console.log(chalk.gray('Then run: /execute ' + planPath));
+    } else if (action === 'save') {
+      const pending = (await planManager.listPlans()).filter(p => p.plan.status === 'pending').length;
+      console.log(chalk.green(\`\\n✅ Plan saved. You now have \${pending} pending plan(s).\`));
+      console.log(chalk.cyan('\\nTo return to this plan later:'));
+      console.log(chalk.gray('  /plans          - List all pending plans'));
+      console.log(chalk.gray('  /execute 1      - Execute plan #1'));
+      console.log(chalk.gray('  1               - Shortcut: just type the number'));
+    } else if (action === 'discard') {
+      await planManager.deletePlan(plan.id);
+      console.log(chalk.yellow('Plan discarded.'));
+    }
+  } catch (error) {
+    spinner.fail('Failed to create plan');
+    console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+  }
+}
+
+function parsePlanResponse(text: string, query: string, planManager: PlanManager): Plan {
+  const summaryMatch = text.match(/SUMMARY:\\s*(.+?)(?=\\n|ANALYSIS:)/s);
+  const analysisMatch = text.match(/ANALYSIS:\\s*([\\s\\S]+?)(?=STEPS:|$)/);
+  const stepsMatch = text.match(/STEPS:\\s*([\\s\\S]+?)(?=ROLLBACK:|$)/);
+  const rollbackMatch = text.match(/ROLLBACK:\\s*([\\s\\S]+?)$/);
+
+  const steps: PlanStep[] = [];
+  if (stepsMatch) {
+    const stepLines = stepsMatch[1].trim().split('\\n').filter(l => l.trim());
+    let stepNum = 1;
+    for (const line of stepLines) {
+      const match = line.match(/\\d+\\.\\s*(.+?)\\s*\\|\\s*Action:\\s*(\\w+)\\s*\\|\\s*Target:\\s*(.+?)\\s*\\|\\s*Purpose:\\s*(.+?)\\s*\\|\\s*Risk:\\s*(\\w+)/i);
+      if (match) {
+        steps.push({
+          id: \`step-\${stepNum++}\`,
+          name: match[1].trim(),
+          action: match[2].toLowerCase() as PlanStep['action'],
+          target: match[3].trim(),
+          purpose: match[4].trim(),
+          risk: match[5].toLowerCase() as PlanStep['risk'],
+          status: 'pending'
+        });
+      }
+    }
+  }
+
+  const rollbackStrategy: string[] = [];
+  if (rollbackMatch) {
+    const rollbackLines = rollbackMatch[1].trim().split('\\n');
+    for (const line of rollbackLines) {
+      const clean = line.replace(/^-\\s*/, '').trim();
+      if (clean) rollbackStrategy.push(clean);
+    }
+  }
+
+  const now = new Date();
+  const date = now.toISOString().split('T')[0].replace(/-/g, '');
+  const time = now.toTimeString().split(' ')[0].replace(/:/g, '').slice(0, 6);
+
+  return {
+    id: \`plan-\${date}-\${time}\`,
+    created: now,
+    status: 'pending',
+    query,
+    summary: summaryMatch?.[1]?.trim() || 'Plan for: ' + query.slice(0, 50),
+    analysis: analysisMatch?.[1]?.trim() || '',
+    steps,
+    rollbackStrategy
+  };
+}
+
+function displayPlan(plan: Plan) {
+  console.log(chalk.cyan.bold('\\n📋 Plan Created'));
+  console.log(chalk.white('\\nSummary: ') + plan.summary);
+
+  if (plan.analysis) {
+    console.log(chalk.white('\\nAnalysis:'));
+    console.log(chalk.gray(plan.analysis));
+  }
+
+  console.log(chalk.white('\\nSteps:'));
+  plan.steps.forEach((step, i) => {
+    const riskColor = step.risk === 'high' ? chalk.red : step.risk === 'medium' ? chalk.yellow : chalk.green;
+    console.log(chalk.white(\`  \${i + 1}. \${step.name}\`));
+    console.log(chalk.gray(\`     Action: \${step.action}\`) + (step.target ? chalk.gray(\` → \${step.target}\`) : ''));
+    console.log(chalk.gray(\`     Purpose: \${step.purpose}\`));
+    console.log(\`     Risk: \` + riskColor(step.risk));
+  });
+
+  if (plan.rollbackStrategy.length > 0) {
+    console.log(chalk.white('\\nRollback Strategy:'));
+    plan.rollbackStrategy.forEach(s => console.log(chalk.gray(\`  - \${s}\`)));
+  }
+}
+
+async function executePlan(plan: Plan, agent: any, pm: PermissionManager, planManager: PlanManager) {
+  console.log(chalk.cyan('\\n⚡ Executing plan: ' + plan.summary));
+
+  await planManager.updateStatus(plan.id, 'executing');
+
+  for (const step of plan.steps) {
+    console.log(chalk.white(\`\\n→ Step \${step.id.replace('step-', '')}: \${step.name}\`));
+
+    const spinner = ora(\`Executing: \${step.action}\`).start();
+
+    try {
+      // Execute based on action type
+      const stepPrompt = \`Execute this step of the plan:
+Step: \${step.name}
+Action: \${step.action}
+Target: \${step.target || 'N/A'}
+Purpose: \${step.purpose}
+
+Please execute this step now.\`;
+
+      const response = agent.query(stepPrompt);
+      spinner.stop();
+
+      for await (const message of response) {
+        if (message.type === 'stream_event') {
+          const event = (message as any).event;
+          if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+            process.stdout.write(event.delta.text || '');
+          }
+        }
+      }
+
+      await planManager.updateStepStatus(plan.id, step.id, 'completed');
+      console.log(chalk.green(\`\\n✓ Step \${step.id.replace('step-', '')} completed\`));
+    } catch (error) {
+      spinner.fail(\`Step \${step.id.replace('step-', '')} failed\`);
+      await planManager.updateStepStatus(plan.id, step.id, 'failed');
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+
+      const { cont } = await inquirer.prompt([{
+        type: 'confirm',
+        name: 'cont',
+        message: 'Continue with remaining steps?',
+        default: false
+      }]);
+
+      if (!cont) {
+        await planManager.updateStatus(plan.id, 'failed');
+        return;
+      }
+    }
+  }
+
+  await planManager.updateStatus(plan.id, 'completed');
+  console.log(chalk.green('\\n✅ Plan completed successfully!'));
+  console.log(chalk.gray('Plan archived. Run /plan-delete all-completed to clean up.'));
+}
+
+async function listPlans(planManager: PlanManager) {
+  const plans = await planManager.listPlans();
+
+  const pending = plans.filter(p => p.plan.status === 'pending');
+  const completed = plans.filter(p => p.plan.status === 'completed');
+
+  if (pending.length === 0 && completed.length === 0) {
+    console.log(chalk.gray('\\nNo plans found. Use /plan <query> to create one.'));
+    return;
+  }
+
+  if (pending.length > 0) {
+    console.log(chalk.cyan('\\n📋 Pending Plans:'));
+    pending.forEach((p, i) => {
+      const age = formatAge(p.plan.created);
+      console.log(chalk.white(\`  \${i + 1}. \${p.plan.summary}\`));
+      console.log(chalk.gray(\`     Created \${age} • \${p.plan.steps.length} steps\`));
+    });
+    console.log(chalk.gray('\\n  Type a number to execute, or /execute <num>'));
+  }
+
+  if (completed.length > 0) {
+    console.log(chalk.gray(\`\\n✅ \${completed.length} completed plan(s) - run /plan-delete all-completed to clean up\`));
+  }
+}
+
+async function executePlanByRef(ref: string, agent: any, pm: PermissionManager, planManager: PlanManager) {
+  if (/^\\d+$/.test(ref)) {
+    await executePlanByNumber(parseInt(ref), agent, pm, planManager);
+    return;
+  }
+
+  // Assume it's a path
+  try {
+    const plan = await planManager.loadPlan(ref);
+    await executePlan(plan, agent, pm, planManager);
+  } catch (error) {
+    console.log(chalk.red(\`Error loading plan: \${ref}\`));
+  }
+}
+
+async function executePlanByNumber(num: number, agent: any, pm: PermissionManager, planManager: PlanManager) {
+  const plans = await planManager.listPlans();
+  const pending = plans.filter(p => p.plan.status === 'pending');
+
+  if (num < 1 || num > pending.length) {
+    console.log(chalk.red(\`Invalid plan number. You have \${pending.length} pending plan(s).\`));
+    return;
+  }
+
+  const planEntry = pending[num - 1];
+  await executePlan(planEntry.plan, agent, pm, planManager);
+}
+
+async function deletePlanByRef(ref: string, planManager: PlanManager) {
+  if (ref === 'all-completed') {
+    const deleted = await planManager.deleteCompleted();
+    console.log(chalk.green(\`\\n✅ Deleted \${deleted} completed plan(s).\`));
+    return;
+  }
+
+  if (ref === 'all') {
+    const { confirm } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'confirm',
+      message: 'Delete ALL plans (pending and completed)?',
+      default: false
+    }]);
+    if (confirm) {
+      const deleted = await planManager.deleteAll();
+      console.log(chalk.green(\`\\n✅ Deleted \${deleted} plan(s).\`));
+    }
+    return;
+  }
+
+  // Delete by number
+  if (/^\\d+$/.test(ref)) {
+    const plans = await planManager.listPlans();
+    const pending = plans.filter(p => p.plan.status === 'pending');
+    const num = parseInt(ref);
+    if (num >= 1 && num <= pending.length) {
+      await planManager.deletePlan(pending[num - 1].plan.id);
+      console.log(chalk.green('\\n✅ Plan deleted.'));
+      return;
+    }
+  }
+
+  // Try as plan ID
+  await planManager.deletePlan(ref);
+  console.log(chalk.green('\\n✅ Plan deleted.'));
+}
+
 process.on('SIGINT', () => {
   console.log(chalk.yellow('\\n\\n👋 Goodbye!'));
   process.exit(0);
@@ -826,9 +1202,6 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
     case 'openai':
       imports.push(`import { Agent, run, tool } from '@openai/agents';`)
       break
-    case 'anthropic-direct':
-      imports.push(`import Anthropic from '@anthropic-ai/sdk';`)
-      break
   }
   
   if (hasFileOps) {
@@ -851,8 +1224,6 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       return generateClaudeAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'openai':
       return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
-    case 'anthropic-direct':
-      return generateAnthropicDirectAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     default:
       throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
   }
@@ -1051,7 +1422,12 @@ export class ${className}Agent {
           },
           async (args) => {
             const result = await this.knowledgeTools.extractTables(args.filePath);
-            return { content: [{ type: 'text', text: result.summary }] };
+            const summary = result.tables.length === 0
+              ? 'No tables found in document.'
+              : result.tables.map((t, i) =>
+                  \`Table \${i + 1} (\${t.format}):\\n\${t.rows.slice(0, 5).map(r => r.join(' | ')).join('\\n')}\${t.rows.length > 5 ? \`\\n... and \${t.rows.length - 5} more rows\` : ''}\`
+                ).join('\\n\\n');
+            return { content: [{ type: 'text', text: \`Source: \${result.source}\\n\\n\${summary}\` }] };
           }
         )
       );
@@ -1370,7 +1746,10 @@ export class ${className}Agent {
           }),
           execute: async ({ filePath }: { filePath: string }) => {
             const result = await this.knowledgeTools.extractTables(filePath);
-            return result.summary;
+            if (result.tables.length === 0) return 'No tables found in document.';
+            return result.tables.map((t, i) =>
+              \`Table \${i + 1} (\${t.format}):\\n\${t.rows.slice(0, 5).map(r => r.join(' | ')).join('\\n')}\${t.rows.length > 5 ? \`\\n... and \${t.rows.length - 5} more rows\` : ''}\`
+            ).join('\\n\\n');
           }
         })
       );
@@ -1466,112 +1845,6 @@ Always be helpful, accurate, and focused on ${config.domain} tasks. Use the prov
 }`
 }
 
-function generateAnthropicDirectAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
-  return `${imports.join('\n')}
-
-export interface ${className}AgentConfig {
-  verbose?: boolean;
-  apiKey?: string;
-  model?: string;
-}
-
-export class ${className}Agent {
-  private config: ${className}AgentConfig;
-  private anthropic: Anthropic;
-  private conversationHistory: string[] = [];${hasFileOps ? `
-  private fileOps: FileOperations;` : ''}${hasCommands ? `
-  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
-  private webTools: WebTools;` : ''}
-
-  constructor(config: ${className}AgentConfig = {}) {
-    this.config = config;
-    
-    if (!config.apiKey) {
-      throw new Error('Anthropic API key is required. Set it via config.apiKey or ANTHROPIC_API_KEY environment variable.');
-    }
-    
-    this.anthropic = new Anthropic({
-      apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY
-    });${hasFileOps ? `
-    this.fileOps = new FileOperations();` : ''}${hasCommands ? `
-    this.commandRunner = new CommandRunner();` : ''}${hasWeb ? `
-    this.webTools = new WebTools();` : ''}
-  }
-
-  async query(userQuery: string): Promise<string> {
-    this.conversationHistory.push(\`User: \${userQuery}\`);
-
-    const systemPrompt = this.buildSystemPrompt();
-    const fullPrompt = \`\${systemPrompt}\\n\\nConversation History:\\n\${this.conversationHistory.join('\\n')}\\n\\nCurrent Query: \${userQuery}\`;
-    
-    try {
-      const response = await this.anthropic.messages.create({
-        model: this.config.model || '${config.model}',
-        max_tokens: ${config.maxTokens || 4096},
-        messages: [{
-          role: 'user',
-          content: fullPrompt
-        }]
-      });
-
-      const responseText = response.content[0]?.type === 'text' ? response.content[0].text : 'No response generated.';
-      this.conversationHistory.push(\`Assistant: \${responseText}\`);
-      
-      return responseText;
-    } catch (error) {
-      console.error('Anthropic API error:', error);
-      throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
-    }
-  }
-
-  private buildSystemPrompt(): string {
-    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
-
-${config.specialization || template?.documentation || ''}
-
-## Your Capabilities:
-${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
-
-## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
-
-Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
-  }
-
-  clearHistory(): void {
-    this.conversationHistory = [];
-  }${hasFileOps ? `
-
-  // File operation helpers
-  async readFile(filePath: string): Promise<string> {
-    return this.fileOps.readFile(filePath);
-  }
-
-  async writeFile(filePath: string, content: string): Promise<void> {
-    return this.fileOps.writeFile(filePath, content);
-  }
-
-  async findFiles(pattern: string): Promise<string[]> {
-    return this.fileOps.findFiles(pattern);
-  }` : ''}${hasCommands ? `
-
-  // Command execution helpers
-  async runCommand(command: string): Promise<void> {
-    const result = await this.commandRunner.execute(command);
-    console.log(this.commandRunner.formatResult(result));
-  }` : ''}${hasWeb ? `
-
-  // Web tools helpers  
-  async searchWeb(query: string): Promise<string[]> {
-    return this.webTools.search(query);
-  }
-
-  async fetchUrl(url: string): Promise<string> {
-    return this.webTools.fetch(url);
-  }` : ''}
-}`
-}
-
 function generateConfig(config: AgentConfig): string {
   return `import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -1627,6 +1900,290 @@ export class ConfigManager {
     return !!this.config.apiKey;
   }
 }`
+}
+
+function generatePlanManager(config: AgentConfig): string {
+  return `import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises';
+import { join, basename } from 'path';
+import { existsSync } from 'fs';
+
+export interface PlanStep {
+  id: string;
+  name: string;
+  action: 'read' | 'write' | 'edit' | 'command' | 'query';
+  target?: string;
+  purpose: string;
+  risk: 'low' | 'medium' | 'high';
+  status: 'pending' | 'completed' | 'failed' | 'skipped';
+}
+
+export interface Plan {
+  id: string;
+  created: Date;
+  status: 'pending' | 'approved' | 'executing' | 'completed' | 'failed';
+  query: string;
+  summary: string;
+  analysis: string;
+  steps: PlanStep[];
+  rollbackStrategy: string[];
+}
+
+export class PlanManager {
+  private plansDir: string;
+
+  constructor(baseDir: string = process.cwd()) {
+    this.plansDir = join(baseDir, '.plans');
+  }
+
+  async ensureDir(): Promise<void> {
+    if (!existsSync(this.plansDir)) {
+      await mkdir(this.plansDir, { recursive: true });
+    }
+  }
+
+  async createPlan(query: string, summary: string, analysis: string, steps: PlanStep[], rollbackStrategy: string[]): Promise<Plan> {
+    const plan: Plan = {
+      id: this.generatePlanId(),
+      created: new Date(),
+      status: 'pending',
+      query,
+      summary,
+      analysis,
+      steps,
+      rollbackStrategy
+    };
+    return plan;
+  }
+
+  async savePlan(plan: Plan): Promise<string> {
+    await this.ensureDir();
+    const slug = this.slugify(plan.summary);
+    const filename = \`\${plan.id}-\${slug}.plan.md\`;
+    const filepath = join(this.plansDir, filename);
+    const content = this.serializePlanMarkdown(plan);
+    await writeFile(filepath, content, 'utf-8');
+    return filepath;
+  }
+
+  async loadPlan(planPath: string): Promise<Plan> {
+    const content = await readFile(planPath, 'utf-8');
+    return this.parsePlanMarkdown(content);
+  }
+
+  async listPlans(): Promise<{ path: string; plan: Plan }[]> {
+    await this.ensureDir();
+    const files = await readdir(this.plansDir);
+    const planFiles = files.filter(f => f.endsWith('.plan.md'));
+
+    const plans: { path: string; plan: Plan }[] = [];
+    for (const file of planFiles) {
+      const filepath = join(this.plansDir, file);
+      try {
+        const plan = await this.loadPlan(filepath);
+        plans.push({ path: filepath, plan });
+      } catch (e) {
+        // Skip invalid plan files
+      }
+    }
+
+    // Sort by creation date, newest first
+    plans.sort((a, b) => new Date(b.plan.created).getTime() - new Date(a.plan.created).getTime());
+    return plans;
+  }
+
+  async deletePlan(planId: string): Promise<void> {
+    const plans = await this.listPlans();
+    const plan = plans.find(p => p.plan.id === planId);
+    if (plan) {
+      await unlink(plan.path);
+    }
+  }
+
+  async deleteCompleted(): Promise<number> {
+    const plans = await this.listPlans();
+    const completed = plans.filter(p => p.plan.status === 'completed');
+    for (const p of completed) {
+      await unlink(p.path);
+    }
+    return completed.length;
+  }
+
+  async deleteAll(): Promise<number> {
+    const plans = await this.listPlans();
+    for (const p of plans) {
+      await unlink(p.path);
+    }
+    return plans.length;
+  }
+
+  async updateStatus(planId: string, status: Plan['status']): Promise<void> {
+    const plans = await this.listPlans();
+    const planEntry = plans.find(p => p.plan.id === planId);
+    if (planEntry) {
+      planEntry.plan.status = status;
+      const content = this.serializePlanMarkdown(planEntry.plan);
+      await writeFile(planEntry.path, content, 'utf-8');
+    }
+  }
+
+  async updateStepStatus(planId: string, stepId: string, status: PlanStep['status']): Promise<void> {
+    const plans = await this.listPlans();
+    const planEntry = plans.find(p => p.plan.id === planId);
+    if (planEntry) {
+      const step = planEntry.plan.steps.find(s => s.id === stepId);
+      if (step) {
+        step.status = status;
+        const content = this.serializePlanMarkdown(planEntry.plan);
+        await writeFile(planEntry.path, content, 'utf-8');
+      }
+    }
+  }
+
+  private generatePlanId(): string {
+    const now = new Date();
+    const date = now.toISOString().split('T')[0].replace(/-/g, '');
+    const time = now.toTimeString().split(' ')[0].replace(/:/g, '').slice(0, 6);
+    return \`plan-\${date}-\${time}\`;
+  }
+
+  private slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\\s-]/g, '')
+      .replace(/\\s+/g, '-')
+      .slice(0, 30)
+      .replace(/-+$/, '');
+  }
+
+  private parsePlanMarkdown(content: string): Plan {
+    const lines = content.split('\\n');
+    const frontmatterEnd = lines.findIndex((l, i) => i > 0 && l === '---');
+
+    // Parse frontmatter
+    const frontmatter: Record<string, string> = {};
+    for (let i = 1; i < frontmatterEnd; i++) {
+      const match = lines[i].match(/^(\\w+):\\s*(.+)$/);
+      if (match) {
+        frontmatter[match[1]] = match[2].replace(/^"(.+)"$/, '$1');
+      }
+    }
+
+    // Parse body
+    const body = lines.slice(frontmatterEnd + 1).join('\\n');
+
+    // Extract sections
+    const summaryMatch = body.match(/## Summary\\n([\\s\\S]*?)(?=##|$)/);
+    const analysisMatch = body.match(/## Analysis\\n([\\s\\S]*?)(?=##|$)/);
+    const stepsMatch = body.match(/## Steps\\n([\\s\\S]*?)(?=##|$)/);
+    const rollbackMatch = body.match(/## Rollback Strategy\\n([\\s\\S]*?)(?=##|$)/);
+
+    // Parse steps
+    const steps: PlanStep[] = [];
+    if (stepsMatch) {
+      const stepRegex = /\\d+\\.\\s+\\*\\*(.+?)\\*\\*\\n([\\s\\S]*?)(?=\\d+\\.|$)/g;
+      let match;
+      let stepNum = 1;
+      while ((match = stepRegex.exec(stepsMatch[1])) !== null) {
+        const stepName = match[1];
+        const stepBody = match[2];
+
+        const actionMatch = stepBody.match(/Action:\\s*(\\w+)/);
+        const targetMatch = stepBody.match(/Target:\\s*(.+)/);
+        const purposeMatch = stepBody.match(/Purpose:\\s*(.+)/);
+        const riskMatch = stepBody.match(/Risk:\\s*(\\w+)/);
+        const statusMatch = stepBody.match(/Status:\\s*(\\w+)/);
+
+        steps.push({
+          id: \`step-\${stepNum++}\`,
+          name: stepName.trim(),
+          action: (actionMatch?.[1] || 'query') as PlanStep['action'],
+          target: targetMatch?.[1]?.trim(),
+          purpose: purposeMatch?.[1]?.trim() || '',
+          risk: (riskMatch?.[1] || 'low') as PlanStep['risk'],
+          status: (statusMatch?.[1] || 'pending') as PlanStep['status']
+        });
+      }
+    }
+
+    // Parse rollback
+    const rollbackStrategy: string[] = [];
+    if (rollbackMatch) {
+      const rollbackLines = rollbackMatch[1].trim().split('\\n');
+      for (const line of rollbackLines) {
+        const clean = line.replace(/^-\\s*/, '').trim();
+        if (clean) rollbackStrategy.push(clean);
+      }
+    }
+
+    return {
+      id: frontmatter.id || this.generatePlanId(),
+      created: new Date(frontmatter.created || Date.now()),
+      status: (frontmatter.status || 'pending') as Plan['status'],
+      query: frontmatter.query || '',
+      summary: summaryMatch?.[1]?.trim() || '',
+      analysis: analysisMatch?.[1]?.trim() || '',
+      steps,
+      rollbackStrategy
+    };
+  }
+
+  private serializePlanMarkdown(plan: Plan): string {
+    const lines: string[] = [];
+
+    // Frontmatter
+    lines.push('---');
+    lines.push(\`id: \${plan.id}\`);
+    lines.push(\`created: \${plan.created.toISOString()}\`);
+    lines.push(\`status: \${plan.status}\`);
+    lines.push(\`query: "\${plan.query.replace(/"/g, '\\\\"')}"\`);
+    lines.push('---');
+    lines.push('');
+
+    // Summary
+    lines.push('## Summary');
+    lines.push(plan.summary);
+    lines.push('');
+
+    // Analysis
+    lines.push('## Analysis');
+    lines.push(plan.analysis);
+    lines.push('');
+
+    // Steps
+    lines.push('## Steps');
+    plan.steps.forEach((step, i) => {
+      lines.push(\`\${i + 1}. **\${step.name}**\`);
+      lines.push(\`   - Action: \${step.action}\`);
+      if (step.target) lines.push(\`   - Target: \${step.target}\`);
+      lines.push(\`   - Purpose: \${step.purpose}\`);
+      lines.push(\`   - Risk: \${step.risk}\`);
+      lines.push(\`   - Status: \${step.status}\`);
+      lines.push('');
+    });
+
+    // Rollback Strategy
+    lines.push('## Rollback Strategy');
+    for (const strategy of plan.rollbackStrategy) {
+      lines.push(\`- \${strategy}\`);
+    }
+
+    return lines.join('\\n');
+  }
+}
+
+export function formatAge(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return \`\${diffMins} minute\${diffMins > 1 ? 's' : ''} ago\`;
+  if (diffHours < 24) return \`\${diffHours} hour\${diffHours > 1 ? 's' : ''} ago\`;
+  return \`\${diffDays} day\${diffDays > 1 ? 's' : ''} ago\`;
+}
+`
 }
 
 function generatePermissions(config: AgentConfig): string {
@@ -2235,13 +2792,41 @@ function generateKnowledgeToolsImpl(): GeneratedFile {
     path: 'src/tools/knowledge-tools.ts',
     template: 'knowledge-tools.ts',
     type: 'typescript',
-    content: `import { readFile, writeFile, mkdir } from 'fs/promises'
-import { resolve, dirname, extname } from 'path'
+    content: `import { readFile, writeFile, mkdir, stat } from 'fs/promises'
+import { resolve, dirname, extname, basename } from 'path'
 import pdf from 'pdf-parse'
 import mammoth from 'mammoth'
 import { PermissionManager } from '../permissions.js'
 
-type ExtractResult = { text: string; source: string }
+export interface DocumentMetadata {
+  title: string
+  source: string
+  format: string
+  pageCount?: number
+  wordCount: number
+  charCount: number
+  estimatedReadTime: string
+  extractedAt: string
+}
+
+export interface ExtractResult {
+  text: string
+  source: string
+  metadata: DocumentMetadata
+}
+
+export interface ChunkResult {
+  chunks: string[]
+  metadata: DocumentMetadata
+}
+
+export interface TableResult {
+  tables: Array<{
+    rows: string[][]
+    format: 'csv' | 'tsv' | 'markdown' | 'unknown'
+  }>
+  source: string
+}
 
 export class KnowledgeTools {
   private permissionManager: PermissionManager
@@ -2252,36 +2837,169 @@ export class KnowledgeTools {
     this.notesPath = notesPath
   }
 
+  /**
+   * Extract text from various document formats
+   * Supports: PDF, DOCX, TXT, MD, HTML, CSV, JSON
+   */
   async extractText(filePath: string, captureSources = true): Promise<ExtractResult> {
     const absolutePath = resolve(filePath)
     await this.ensureReadable(absolutePath)
     const ext = extname(absolutePath).toLowerCase()
+    const fileName = basename(absolutePath)
 
     let text = ''
-    if (ext === '.pdf') {
-      const data = await pdf(await readFile(absolutePath))
-      text = data.text
-    } else if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ path: absolutePath })
-      text = result.value
-    } else {
-      text = await readFile(absolutePath, 'utf-8')
+    let pageCount: number | undefined
+
+    try {
+      switch (ext) {
+        case '.pdf': {
+          const buffer = await readFile(absolutePath)
+          const data = await pdf(buffer)
+          text = data.text
+          pageCount = data.numpages
+          break
+        }
+        case '.docx': {
+          const result = await mammoth.extractRawText({ path: absolutePath })
+          text = result.value
+          if (result.messages.length > 0) {
+            console.warn('DOCX warnings:', result.messages.map(m => m.message).join(', '))
+          }
+          break
+        }
+        case '.html':
+        case '.htm': {
+          const html = await readFile(absolutePath, 'utf-8')
+          text = this.stripHtml(html)
+          break
+        }
+        case '.json': {
+          const json = await readFile(absolutePath, 'utf-8')
+          text = JSON.stringify(JSON.parse(json), null, 2)
+          break
+        }
+        case '.csv': {
+          text = await readFile(absolutePath, 'utf-8')
+          break
+        }
+        default:
+          text = await readFile(absolutePath, 'utf-8')
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      throw new Error(\`Failed to extract text from \${fileName}: \${msg}\`)
     }
 
+    // Clean up text
+    text = this.cleanText(text)
+
+    const metadata = this.computeMetadata(fileName, absolutePath, ext, text, pageCount)
     const source = captureSources ? absolutePath : ''
-    return { text, source }
+
+    return { text, source, metadata }
   }
 
-  async extractTables(filePath: string): Promise<{ summary: string }> {
+  /**
+   * Extract text in chunks for large documents (reduces token usage)
+   * @param chunkSize - Target characters per chunk (default 4000 ~= 1000 tokens)
+   * @param overlap - Characters to overlap between chunks (default 200)
+   */
+  async extractChunked(filePath: string, chunkSize = 4000, overlap = 200): Promise<ChunkResult> {
+    const { text, metadata } = await this.extractText(filePath, true)
+
+    const chunks: string[] = []
+    let start = 0
+
+    while (start < text.length) {
+      let end = start + chunkSize
+
+      // Try to break at paragraph or sentence boundary
+      if (end < text.length) {
+        const paragraphBreak = text.lastIndexOf('\\n\\n', end)
+        const sentenceBreak = text.lastIndexOf('. ', end)
+
+        if (paragraphBreak > start + chunkSize * 0.5) {
+          end = paragraphBreak + 2
+        } else if (sentenceBreak > start + chunkSize * 0.5) {
+          end = sentenceBreak + 2
+        }
+      }
+
+      chunks.push(text.slice(start, end).trim())
+      start = end - overlap
+    }
+
+    return { chunks, metadata }
+  }
+
+  /**
+   * Extract tables from documents with better detection
+   */
+  async extractTables(filePath: string): Promise<TableResult> {
     const { text, source } = await this.extractText(filePath, true)
-    // naive table detection: lines with commas or tabs
-    const tableLines = text.split('\\n').filter(line => line.includes(',') || line.includes('\\t'))
-    const summary = [
-      'Table-like content (preview):',
-      tableLines.slice(0, 10).join('\\n'),
-      source ? '\\nSource: ' + source : ''
-    ].join('\\n')
-    return { summary }
+    const tables: TableResult['tables'] = []
+
+    // Detect CSV-style tables (comma-separated)
+    const csvBlocks = this.detectTableBlocks(text, ',')
+    for (const block of csvBlocks) {
+      tables.push({ rows: block, format: 'csv' })
+    }
+
+    // Detect TSV-style tables (tab-separated)
+    const tsvBlocks = this.detectTableBlocks(text, '\\t')
+    for (const block of tsvBlocks) {
+      tables.push({ rows: block, format: 'tsv' })
+    }
+
+    // Detect markdown tables
+    const mdTables = this.detectMarkdownTables(text)
+    for (const table of mdTables) {
+      tables.push({ rows: table, format: 'markdown' })
+    }
+
+    return { tables, source }
+  }
+
+  /**
+   * Get document summary without full extraction (faster for large docs)
+   */
+  async getDocumentInfo(filePath: string): Promise<DocumentMetadata> {
+    const absolutePath = resolve(filePath)
+    await this.ensureReadable(absolutePath)
+
+    const ext = extname(absolutePath).toLowerCase()
+    const fileName = basename(absolutePath)
+    const stats = await stat(absolutePath)
+
+    // For PDFs, we can get page count without full extraction
+    if (ext === '.pdf') {
+      try {
+        const buffer = await readFile(absolutePath)
+        const data = await pdf(buffer, { max: 1 }) // Only parse first page
+        return {
+          title: fileName,
+          source: absolutePath,
+          format: 'PDF',
+          pageCount: data.numpages,
+          wordCount: 0, // Unknown without full extraction
+          charCount: stats.size,
+          estimatedReadTime: \`~\${Math.ceil(data.numpages * 2)} min (based on page count)\`,
+          extractedAt: new Date().toISOString()
+        }
+      } catch {
+        // Fall through to basic info
+      }
+    }
+
+    return {
+      title: fileName,
+      source: absolutePath,
+      format: ext.slice(1).toUpperCase(),
+      wordCount: 0,
+      charCount: stats.size,
+      estimatedReadTime: 'Unknown',
+      extractedAt: new Date().toISOString()
+    }
   }
 
   async saveNote(title: string, source: string, content: string): Promise<string> {
@@ -2291,26 +3009,53 @@ export class KnowledgeTools {
       details: 'Appending to local notes'
     })
     await mkdir(dirname(this.notesPath), { recursive: true })
+
+    const timestamp = new Date().toISOString().split('T')[0]
     const entry = [
-      '\\n## ' + title,
-      'Source: ' + source,
+      '',
+      \`## \${title}\`,
+      \`*Source: \${source}*\`,
+      \`*Added: \${timestamp}*\`,
       '',
       content,
-      ''
+      '',
+      '---'
     ].join('\\n')
+
     await writeFile(this.notesPath, entry, { flag: 'a' })
-    return 'Saved note to ' + this.notesPath
+    return \`Saved note "\${title}" to \${this.notesPath}\`
   }
 
   async searchLocal(query: string, limit = 5): Promise<string> {
-    const { text } = await this.extractText(this.notesPath, false).catch(() => ({ text: '' }))
-    const lines = text.split('\\n').filter(Boolean)
-    const matches = lines.filter(line => line.toLowerCase().includes(query.toLowerCase())).slice(0, limit)
-    if (matches.length === 0) {
-      return 'No matches found in local notes.'
+    try {
+      const { text } = await this.extractText(this.notesPath, false)
+      const lines = text.split('\\n').filter(Boolean)
+
+      // Score lines by relevance (simple term frequency)
+      const queryTerms = query.toLowerCase().split(/\\s+/)
+      const scored = lines.map(line => {
+        const lower = line.toLowerCase()
+        const score = queryTerms.reduce((s, term) => s + (lower.includes(term) ? 1 : 0), 0)
+        return { line, score }
+      })
+
+      const matches = scored
+        .filter(s => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(s => s.line)
+
+      if (matches.length === 0) {
+        return \`No matches found for "\${query}" in local notes.\`
+      }
+
+      return [\`Found \${matches.length} matches for "\${query}":\`, '', ...matches].join('\\n')
+    } catch {
+      return 'No notes found. Use saveNote to create notes first.'
     }
-    return ['Matches:', ...matches].join('\\n')
   }
+
+  // ─── Private Helpers ─────────────────────────────────────────────
 
   private async ensureReadable(path: string) {
     await this.permissionManager.requestPermission({
@@ -2318,6 +3063,120 @@ export class KnowledgeTools {
       resource: path,
       details: 'Reading document for analysis'
     })
+  }
+
+  private cleanText(text: string): string {
+    return text
+      .replace(/\\r\\n/g, '\\n')           // Normalize line endings
+      .replace(/\\n{3,}/g, '\\n\\n')        // Collapse multiple blank lines
+      .replace(/[ \\t]+/g, ' ')           // Collapse whitespace
+      .replace(/^\\s+|\\s+$/gm, '')        // Trim lines
+      .trim()
+  }
+
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')  // Remove scripts
+      .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')    // Remove styles
+      .replace(/<[^>]+>/g, ' ')                            // Remove tags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+  }
+
+  private computeMetadata(
+    fileName: string,
+    source: string,
+    ext: string,
+    text: string,
+    pageCount?: number
+  ): DocumentMetadata {
+    const words = text.split(/\\s+/).filter(Boolean)
+    const wordCount = words.length
+    const charCount = text.length
+    const readingSpeed = 200 // words per minute
+    const minutes = Math.ceil(wordCount / readingSpeed)
+
+    return {
+      title: fileName,
+      source,
+      format: ext.slice(1).toUpperCase(),
+      pageCount,
+      wordCount,
+      charCount,
+      estimatedReadTime: minutes < 1 ? '< 1 min' : \`~\${minutes} min\`,
+      extractedAt: new Date().toISOString()
+    }
+  }
+
+  private detectTableBlocks(text: string, delimiter: string): string[][][] {
+    const lines = text.split('\\n')
+    const tables: string[][][] = []
+    let currentTable: string[][] = []
+
+    for (const line of lines) {
+      const cells = line.split(delimiter)
+      // Consider it a table row if it has 2+ cells and consistent structure
+      if (cells.length >= 2 && cells.every(c => c.trim().length < 100)) {
+        currentTable.push(cells.map(c => c.trim()))
+      } else if (currentTable.length >= 2) {
+        // End of table block (need at least 2 rows)
+        tables.push(currentTable)
+        currentTable = []
+      } else {
+        currentTable = []
+      }
+    }
+
+    if (currentTable.length >= 2) {
+      tables.push(currentTable)
+    }
+
+    return tables
+  }
+
+  private detectMarkdownTables(text: string): string[][][] {
+    const tables: string[][][] = []
+    const lines = text.split('\\n')
+
+    let i = 0
+    while (i < lines.length) {
+      // Look for markdown table header separator (|---|---|)
+      if (/^\\|?[\\s-:|]+\\|[\\s-:|]+\\|?$/.test(lines[i])) {
+        const table: string[][] = []
+
+        // Get header (previous line)
+        if (i > 0 && lines[i - 1].includes('|')) {
+          table.push(this.parseMarkdownRow(lines[i - 1]))
+        }
+
+        // Skip separator
+        i++
+
+        // Get body rows
+        while (i < lines.length && lines[i].includes('|')) {
+          table.push(this.parseMarkdownRow(lines[i]))
+          i++
+        }
+
+        if (table.length >= 2) {
+          tables.push(table)
+        }
+      } else {
+        i++
+      }
+    }
+
+    return tables
+  }
+
+  private parseMarkdownRow(line: string): string[] {
+    return line
+      .split('|')
+      .map(cell => cell.trim())
+      .filter(cell => cell.length > 0)
   }
 }
 `
@@ -2612,6 +3471,9 @@ audit.log
 # npm
 *.tgz
 .npmrc
+
+# Plans directory (contains local plan files)
+.plans/
 `
 }
 
@@ -2820,11 +3682,18 @@ esac
 }
 
 function generateWorkflowExecutor(config: AgentConfig): string {
-  return `import { readFileSync } from 'fs';
+  return `import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { glob } from 'glob';
 import chalk from 'chalk';
 import ora from 'ora';
 import type { PermissionManager } from './permissions.js';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '..');
 
 export interface WorkflowStep {
   name: string;
@@ -3035,11 +3904,18 @@ export class WorkflowExecutor {
   }
 
   async loadWorkflow(commandName: string): Promise<WorkflowDefinition> {
+    // Resolve path relative to project root, not current working directory
+    const workflowPath = join(PROJECT_ROOT, '.commands', \`\${commandName}.json\`);
+
+    if (!existsSync(workflowPath)) {
+      throw new Error(\`Workflow not found: \${commandName} (looked in \${workflowPath})\`);
+    }
+
     try {
-      const content = readFileSync(\`.commands/\${commandName}.json\`, 'utf-8');
+      const content = readFileSync(workflowPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      throw new Error(\`Failed to load workflow: \${commandName}\`);
+      throw new Error(\`Failed to load workflow: \${commandName} - \${error instanceof Error ? error.message : String(error)}\`);
     }
   }
 }

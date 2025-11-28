@@ -56,7 +56,7 @@ async function runMatrix() {
     const paths = new Set(project.files.map(f => f.path))
 
     // Core files
-    const mustHave = ['package.json', 'src/agent.ts', 'src/cli.ts', 'src/config.ts', 'src/permissions.ts', 'README.md', 'Dockerfile', '.env.example']
+    const mustHave = ['package.json', 'src/agent.ts', 'src/cli.ts', 'src/config.ts', 'src/permissions.ts', 'src/planner.ts', 'README.md', '.env.example', '.plans/.gitkeep']
     for (const path of mustHave) {
       if (!paths.has(path)) {
         throw new Error(`Template ${template.id} missing required file: ${path}`)
