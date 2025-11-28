@@ -57,6 +57,7 @@ export interface AgentConfig {
   version: string
   author: string
   license: string
+  repository?: string
 }
 
 export interface GeneratedProject {

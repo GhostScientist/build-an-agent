@@ -88,15 +88,7 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     type: 'markdown',
     template: 'README.md'
   })
-  
-  // Generate Docker files for containerization
-  files.push({
-    path: 'Dockerfile',
-    content: generateDockerfile(config),
-    type: 'dockerfile',
-    template: 'Dockerfile'
-  })
-  
+
   // Generate environment template
   files.push({
     path: '.env.example',
@@ -113,22 +105,7 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     template: '.gitignore'
   })
 
-  // Sample data files (local-first)
-  files.push({
-    path: 'data/sample-notes.md',
-    content: sampleNotes(),
-    type: 'markdown',
-    template: 'data/sample-notes.md'
-  })
-
-  files.push({
-    path: 'data/sample-table.csv',
-    content: sampleTable(),
-    type: 'markdown',
-    template: 'data/sample-table.csv'
-  })
-
-  // Developer scripts
+  // Publishing support
   files.push({
     path: 'scripts/publish.sh',
     content: generatePublishScript(config),
@@ -137,17 +114,17 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
   })
 
   files.push({
-    path: 'scripts/eval.ts',
-    content: generateEvalScript(config),
-    type: 'typescript',
-    template: 'scripts/eval.ts'
+    path: '.npmrc.example',
+    content: generateNpmrcExample(config),
+    type: 'shell',
+    template: '.npmrc.example'
   })
 
   files.push({
-    path: 'src/tools/custom/custom-tool-template.ts',
-    content: generateCustomToolTemplate(),
-    type: 'typescript',
-    template: 'src/tools/custom/custom-tool-template.ts'
+    path: 'LICENSE',
+    content: generateLicense(config),
+    type: 'markdown',
+    template: 'LICENSE'
   })
 
   // Workflow support files
@@ -298,7 +275,7 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
 }
 
 function generatePackageJson(config: AgentConfig): string {
-  const packageData = {
+  const packageData: Record<string, any> = {
     name: config.packageName || config.projectName,
     version: config.version || '1.0.0',
     description: config.description || `${config.name} - AI Agent built with Agent Workshop`,
@@ -308,16 +285,17 @@ function generatePackageJson(config: AgentConfig): string {
     },
     scripts: {
       build: 'tsc',
-      dev: 'tsc --watch', 
+      dev: 'tsc --watch',
       start: 'node dist/cli.js',
       test: 'node dist/cli.js --help',
       clean: 'rm -rf dist',
       prepare: 'npm run build',
-      eval: 'ts-node scripts/eval.ts'
+      prepublishOnly: 'npm run build && npm test'
     },
     keywords: [
       'ai-agent',
-      'claude',
+      'cli',
+      config.sdkProvider === 'claude' ? 'claude' : config.sdkProvider === 'openai' ? 'openai' : 'ai',
       'automation',
       config.domain,
       'assistant'
@@ -328,16 +306,38 @@ function generatePackageJson(config: AgentConfig): string {
     engines: {
       node: '>=18.0.0'
     },
+    files: [
+      'dist/**/*',
+      'README.md',
+      'LICENSE'
+    ],
+    repository: config.repository ? {
+      type: 'git',
+      url: config.repository
+    } : undefined,
+    bugs: config.repository ? {
+      url: `${config.repository.replace(/\.git$/, '')}/issues`
+    } : undefined,
+    homepage: config.repository ? config.repository.replace(/\.git$/, '') : undefined,
+    publishConfig: {
+      access: 'public'
+    },
     dependencies: getDependencies(config),
     devDependencies: {
       '@types/node': '^20.10.0',
       '@types/inquirer': '^9.0.7',
       '@types/pdf-parse': '^1.1.4',
-      'typescript': '^5.3.0',
-      'ts-node': '^10.9.2'
+      'typescript': '^5.3.0'
     }
   }
-  
+
+  // Remove undefined fields
+  Object.keys(packageData).forEach(key => {
+    if (packageData[key] === undefined) {
+      delete packageData[key]
+    }
+  })
+
   return JSON.stringify(packageData, null, 2)
 }
 
@@ -435,7 +435,8 @@ function generateCLI(config: AgentConfig, enabledTools: AgentConfig['tools']): s
 
   return `#!/usr/bin/env node
 
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
+import { resolve } from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -443,6 +444,10 @@ import inquirer from 'inquirer';
 import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
+
+// Load .env from current working directory (supports global installation)
+const workingDir = process.cwd();
+loadEnv({ path: resolve(workingDir, '.env') });
 
 const program = new Command();
 
@@ -502,7 +507,8 @@ program
       });
 
       console.log(chalk.cyan.bold('\\n🤖 ${config.name}'));
-      console.log(chalk.gray('${config.description || 'AI Agent for ' + config.domain}\\n'));
+      console.log(chalk.gray('${config.description || 'AI Agent for ' + config.domain}'));
+      console.log(chalk.gray(\`📁 Working directory: \${workingDir}\\n\`));
 
       if (query) {
         await handleSingleQuery(agent, query, options?.verbose);
@@ -2353,7 +2359,7 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 ### Safety & Audit
 - Permission policy: ${config.permissions || 'balanced'}
 - Audit log: stored locally at \`~/.${config.projectName}/audit.log\`
-- Default workspace data: \`./data\` and \`./workflows\`
+- **Workspace sandboxing**: All file operations are restricted to the current working directory
 
 ## Prerequisites
 
@@ -2363,29 +2369,53 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 
 ## Installation
 
+### Option 1: Install Globally (Recommended)
+
+Install once, use from any directory:
+
+\`\`\`bash
+# Build and link globally
+npm install
+./scripts/publish.sh --link
+
+# Or install globally from source
+./scripts/publish.sh --global
+\`\`\`
+
+Then use from any project directory:
+\`\`\`bash
+cd /path/to/your/project
+${config.projectName}
+\`\`\`
+
+### Option 2: Local Development
+
 \`\`\`bash
 npm install
 npm run build
+npm start
 \`\`\`
 
 ## Configuration
 
-Set up your API key by creating a \`.env\` file:
+Create a \`.env\` file in any directory where you want to use the agent:
 
 \`\`\`bash
-cp .env.example .env
-# Edit .env and add your API key
+echo "${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here" > .env
 \`\`\`
 
-Or set the environment variable directly:
+Or set the environment variable:
 \`\`\`bash
 export ${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
 \`\`\`
+
+**Note:** When installed globally, the agent loads \`.env\` from your current working directory.
 
 ## Usage
 
 ### Interactive Mode
 \`\`\`bash
+cd /path/to/your/project  # Agent is sandboxed to this directory
 ${config.projectName}
 \`\`\`
 
@@ -2398,6 +2428,13 @@ ${config.projectName} "Your question here"
 \`\`\`bash
 ${config.projectName} --help
 \`\`\`
+
+### Workspace Security
+
+The agent is **sandboxed** to your current working directory:
+- All file operations (read, write, list) are restricted to the current directory
+- The agent cannot access files above the directory where you run it
+- This allows safe usage across different projects
 
 ## Customization
 
@@ -2448,18 +2485,43 @@ Edit \`src/permissions.ts\` to:
 - Customize permission prompt messages
 - Implement persistent permission storage
 
-## Evals
+## Publishing
 
-Run lightweight evals (requires API key):
-\`\`\`bash
-npm run eval   # via scripts/eval.ts
-\`\`\`
-
-## Publish locally to npm
+### Quick Start
 \`\`\`bash
 chmod +x scripts/publish.sh
-./scripts/publish.sh
+./scripts/publish.sh --help    # See all options
 \`\`\`
+
+### Publish Options
+
+| Command | Description |
+|---------|-------------|
+| \`./scripts/publish.sh --link\` | Link globally for local development |
+| \`./scripts/publish.sh --global\` | Install globally from source |
+| \`./scripts/publish.sh --public\` | Publish to npmjs.com (public) |
+| \`./scripts/publish.sh --private\` | Publish to private registry |
+| \`./scripts/publish.sh --dry-run\` | Test publish without publishing |
+| \`./scripts/publish.sh --pack\` | Create tarball for distribution |
+
+### Publishing to a Private Registry
+
+1. Copy the template: \`cp .npmrc.example .npmrc\`
+2. Edit \`.npmrc\` with your registry URL and auth token
+3. Run: \`./scripts/publish.sh --private\`
+
+Supported registries:
+- GitHub Packages
+- GitLab Packages
+- Artifactory
+- Verdaccio (self-hosted)
+- AWS CodeArtifact
+
+### Scoped Packages
+
+To publish under a scope (e.g., \`@mycompany/${config.projectName}\`):
+1. Update \`package.json\` "name" field
+2. Configure scope in \`.npmrc\`
 
 ## Development
 
@@ -2495,21 +2557,6 @@ This agent was generated using [Agent Workshop](https://agent-workshop.dev) - th
 
 ${config.license || 'MIT'}
 `
-}
-
-function generateDockerfile(config: AgentConfig): string {
-  return `FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY dist/ ./dist/
-
-EXPOSE 3000
-
-CMD ["node", "dist/cli.js"]`
 }
 
 function generateEnvExample(config: AgentConfig): string {
@@ -2561,6 +2608,111 @@ audit.log
 
 # Agent config directory (may contain cached API keys)
 .${config.projectName}/
+
+# npm
+*.tgz
+.npmrc
+`
+}
+
+function generateNpmrcExample(config: AgentConfig): string {
+  return `# npm Registry Configuration
+# Copy this file to .npmrc and update with your settings
+
+# ============================================
+# Option 1: Public npm Registry (default)
+# ============================================
+# No configuration needed - publishes to npmjs.com
+# Run: ./scripts/publish.sh --public
+
+# ============================================
+# Option 2: Private npm Registry
+# ============================================
+# Uncomment and configure for your private registry:
+
+# GitHub Packages
+# @your-org:registry=https://npm.pkg.github.com
+# //npm.pkg.github.com/:_authToken=\${NPM_TOKEN}
+
+# GitLab Packages
+# @your-org:registry=https://gitlab.com/api/v4/projects/PROJECT_ID/packages/npm/
+# //gitlab.com/api/v4/projects/PROJECT_ID/packages/npm/:_authToken=\${NPM_TOKEN}
+
+# Artifactory
+# registry=https://your-company.jfrog.io/artifactory/api/npm/npm-local/
+# //your-company.jfrog.io/artifactory/api/npm/npm-local/:_authToken=\${NPM_TOKEN}
+
+# Verdaccio (self-hosted)
+# registry=http://localhost:4873/
+# //localhost:4873/:_authToken=\${NPM_TOKEN}
+
+# AWS CodeArtifact
+# registry=https://your-domain-123456789.d.codeartifact.region.amazonaws.com/npm/your-repo/
+# //your-domain-123456789.d.codeartifact.region.amazonaws.com/npm/your-repo/:_authToken=\${CODEARTIFACT_AUTH_TOKEN}
+
+# ============================================
+# Scoped Package Configuration
+# ============================================
+# To publish under a scope (e.g., @mycompany/${config.projectName}):
+# 1. Update package.json "name" to "@mycompany/${config.projectName}"
+# 2. Configure scope registry above
+
+# ============================================
+# Authentication
+# ============================================
+# Set NPM_TOKEN environment variable or use npm login:
+#   export NPM_TOKEN=your-token-here
+#   npm login --registry=https://your-registry.com
+`
+}
+
+function generateLicense(config: AgentConfig): string {
+  const year = new Date().getFullYear()
+  const author = config.author || 'Author'
+
+  if (config.license === 'Apache-2.0') {
+    return `Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+Copyright ${year} ${author}
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+`
+  }
+
+  // Default to MIT
+  return `MIT License
+
+Copyright (c) ${year} ${author}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 `
 }
 
@@ -2568,103 +2720,102 @@ function generatePublishScript(config: AgentConfig): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
 
-# Build and publish your agent locally to npm
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "\$SCRIPT_DIR")"
+cd "\$PROJECT_DIR"
+
+show_help() {
+  echo "Usage: ./scripts/publish.sh [OPTION]"
+  echo
+  echo "Build and publish ${config.projectName}"
+  echo
+  echo "Options:"
+  echo "  --link              Link globally for local development"
+  echo "  --global            Install globally from source"
+  echo "  --public            Publish to public npm registry"
+  echo "  --private           Publish to private registry (requires .npmrc)"
+  echo "  --dry-run           Test publish without actually publishing"
+  echo "  --pack              Create tarball without publishing"
+  echo "  -h, --help          Show this help message"
+  echo
+  echo "Examples:"
+  echo "  ./scripts/publish.sh --link      # For local development"
+  echo "  ./scripts/publish.sh --public    # Publish to npmjs.com"
+  echo "  ./scripts/publish.sh --private   # Publish to private registry"
+}
+
+# Build first
 echo "🔧 Building ${config.projectName}..."
 npm install
 npm run build
 
-echo "📦 Preparing npm metadata..."
-npm pack
+case "\${1:-}" in
+  --link)
+    echo "🔗 Linking globally (for local development)..."
+    npm link
+    echo
+    echo "✅ Linked! You can now run '${config.projectName}' from any directory."
+    echo "📁 The agent will use the current directory as its workspace."
+    echo
+    echo "To unlink later: npm unlink -g ${config.projectName}"
+    ;;
 
-echo "🚀 To publish, run:"
-echo "npm publish --access public"
-echo
-echo "✅ Consumers can install globally with:"
-echo "npm install -g ${config.projectName}"
-`
-}
+  --global)
+    echo "📦 Installing globally..."
+    npm install -g .
+    echo
+    echo "✅ Installed! You can now run '${config.projectName}' from any directory."
+    ;;
 
-function generateEvalScript(config: AgentConfig): string {
-  return `#!/usr/bin/env ts-node
-import { ${sanitizeClassName(config.name)}Agent } from '../src/agent'
-import { PermissionManager } from '../src/permissions'
-import path from 'path'
-import fs from 'fs'
+  --public)
+    echo "📦 Publishing to public npm registry..."
+    echo
+    read -p "Publish ${config.projectName} to npmjs.com? (y/N) " confirm
+    if [[ "\$confirm" =~ ^[Yy]\$ ]]; then
+      npm publish --access public
+      echo
+      echo "✅ Published! Install with: npm install -g ${config.projectName}"
+    else
+      echo "Cancelled."
+    fi
+    ;;
 
-async function main() {
-  const apiKey = process.env.${config.sdkProvider?.toUpperCase()}_API_KEY
-  if (!apiKey) {
-    console.error('Set ${config.sdkProvider?.toUpperCase()}_API_KEY before running evals')
-    process.exit(1)
-  }
+  --private)
+    if [[ ! -f .npmrc ]]; then
+      echo "⚠️  No .npmrc file found!"
+      echo "Copy .npmrc.example to .npmrc and configure your private registry:"
+      echo "  cp .npmrc.example .npmrc"
+      echo "  # Edit .npmrc with your registry URL and auth token"
+      exit 1
+    fi
+    echo "📦 Publishing to private registry..."
+    npm publish
+    echo
+    echo "✅ Published to private registry!"
+    ;;
 
-  const agent = new ${sanitizeClassName(config.name)}Agent({
-    apiKey,
-    permissionManager: new PermissionManager({ policy: 'restrictive' })
-  })
+  --dry-run)
+    echo "🧪 Dry run - testing publish..."
+    npm publish --dry-run
+    echo
+    echo "✅ Dry run complete. Use --public or --private to actually publish."
+    ;;
 
-  const tasks = [
-    { name: 'smoke-help', prompt: 'Summarize your capabilities in one paragraph.' },
-    { name: 'read-sample-note', prompt: 'Summarize the key insights from data/sample-notes.md and cite the source.' }
-  ]
+  --pack)
+    echo "📦 Creating tarball..."
+    npm pack
+    echo
+    echo "✅ Tarball created. You can distribute this .tgz file directly."
+    ;;
 
-  fs.mkdirSync('eval-results', { recursive: true })
+  -h|--help)
+    show_help
+    ;;
 
-  for (const task of tasks) {
-    console.log('\\n=== Running', task.name, '===')
-    const response = agent.query(task.prompt)
-    let output = ''
-    for await (const message of response) {
-      if (message.type === 'stream_event' && message.event?.type === 'content_block_delta' && message.event.delta?.type === 'text_delta') {
-        process.stdout.write(message.event.delta.text || '')
-        output += message.event.delta.text || ''
-      }
-    }
-    fs.writeFileSync(path.join('eval-results', task.name + '.txt'), output, { encoding: 'utf-8', flag: 'w' })
-  }
-}
-
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
-`
-}
-
-function sampleNotes(): string {
-  return `## Sample Note
-Source: data/sample-notes.md
-
-- Retrieval-augmented generation combines a retriever and generator to ground responses.
-- Citations matter: always include the source path or URL.
-`
-}
-
-function sampleTable(): string {
-  return `name,category,score
-alpha,baseline,0.61
-beta,improved,0.74
-gamma,experimental,0.52
-`
-}
-
-function generateCustomToolTemplate(): string {
-  return `// Example custom tool. Copy/rename this file and wire it into src/agent.ts
-import { PermissionManager } from '../../permissions'
-
-export class CustomToolTemplate {
-  constructor(private permissions: PermissionManager) {}
-
-  async doSomething(input: string): Promise<string> {
-    await this.permissions.requestPermission({
-      action: 'network_request',
-      resource: 'https://example.com',
-      details: 'Example custom tool call'
-    })
-    // TODO: implement your logic here
-    return \`You sent: \${input}\`
-  }
-}
+  *)
+    show_help
+    ;;
+esac
 `
 }
 
