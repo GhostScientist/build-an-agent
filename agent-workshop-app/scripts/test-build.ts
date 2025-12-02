@@ -30,6 +30,7 @@ const config: AgentConfig = {
   model: 'claude-sonnet-4.5-20250929',
   interface: 'cli',
   tools,
+  mcpServers: [],
   customInstructions: '',
   specialization: template.documentation,
   permissions: 'balanced',

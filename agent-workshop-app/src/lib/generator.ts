@@ -64,7 +64,23 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     type: 'typescript',
     template: 'permissions.ts'
   })
-  
+
+  // Generate MCP configuration manager
+  files.push({
+    path: 'src/mcp-config.ts',
+    content: generateMcpConfigManager(),
+    type: 'typescript',
+    template: 'mcp-config.ts'
+  })
+
+  // Generate initial .mcp.json with configured servers
+  files.push({
+    path: '.mcp.json',
+    content: generateMcpJson(config),
+    type: 'json',
+    template: '.mcp.json'
+  })
+
   // Generate tool implementations based on enabled tools
   const toolCategories = Array.from(new Set(enabledTools.map(tool => tool.category)))
   for (const category of toolCategories) {
@@ -457,6 +473,7 @@ import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
 import { PlanManager, formatAge, type Plan, type PlanStep } from './planner.js';
+import { MCPConfigManager, type MCPServerConfig } from './mcp-config.js';
 
 // Load .env from current working directory (supports global installation)
 const workingDir = process.cwd();
@@ -697,6 +714,11 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
         console.log(chalk.gray('• /execute <num> - Execute plan by number'));
         console.log(chalk.gray('• /plan-delete <num|all|all-completed> - Delete plans'));
         console.log(chalk.gray('• <number> - Quick shortcut to execute plan by number'));
+        console.log(chalk.gray('\\n🔌 MCP Server Commands:'));
+        console.log(chalk.gray('• /mcp-list - List configured MCP servers'));
+        console.log(chalk.gray('• /mcp-add - Add a new MCP server (interactive)'));
+        console.log(chalk.gray('• /mcp-remove [name] - Remove an MCP server'));
+        console.log(chalk.gray('• /mcp-toggle [name] - Enable/disable an MCP server'));
         console.log(chalk.gray('\\n🔮 Workflow Commands:'));${config.domain === 'knowledge' ? `
         console.log(chalk.gray('• /literature-review --sources <path> [--output <path>] [--limit <number>]'));
         console.log(chalk.gray('  Systematic literature review with citations'));
@@ -756,6 +778,29 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
       if (/^\\d+$/.test(input.trim())) {
         const planNum = parseInt(input.trim());
         await executePlanByNumber(planNum, agent, permissionManager, planManager);
+        continue;
+      }
+
+      // Handle MCP commands
+      if (input === '/mcp-list') {
+        await handleMcpList();
+        continue;
+      }
+
+      if (input === '/mcp-add') {
+        await handleMcpAdd();
+        continue;
+      }
+
+      if (input.startsWith('/mcp-remove')) {
+        const name = input.slice(11).trim();
+        await handleMcpRemove(name);
+        continue;
+      }
+
+      if (input.startsWith('/mcp-toggle')) {
+        const name = input.slice(11).trim();
+        await handleMcpToggle(name);
         continue;
       }
 
@@ -854,6 +899,228 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
       console.error(chalk.red('Unexpected error:'), error);
     }
   }
+}
+
+// MCP Server management functions
+async function handleMcpList() {
+  const mcpConfig = new MCPConfigManager();
+  await mcpConfig.load();
+
+  console.log(chalk.cyan.bold('\\n📦 MCP Servers\\n'));
+  console.log(mcpConfig.formatServerList());
+  console.log(chalk.gray(\`\\nConfig: \${process.cwd()}/.mcp.json\\n\`));
+}
+
+async function handleMcpAdd() {
+  const mcpConfig = new MCPConfigManager();
+  await mcpConfig.load();
+
+  console.log(chalk.cyan.bold('\\n📦 Add MCP Server\\n'));
+
+  // Step 1: Server name
+  const { name } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Server name (lowercase, alphanumeric, hyphens):',
+      validate: (input: string) => {
+        if (!input.trim()) return 'Name is required';
+        if (!/^[a-z][a-z0-9-]*$/.test(input)) {
+          return 'Name must be lowercase, start with a letter, and contain only letters, numbers, and hyphens';
+        }
+        if (mcpConfig.getServers()[input]) {
+          return 'A server with this name already exists';
+        }
+        return true;
+      }
+    }
+  ]);
+
+  // Step 2: Transport type
+  const { transportType } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'transportType',
+      message: 'Transport type:',
+      choices: [
+        { name: 'Stdio (local command)', value: 'stdio' },
+        { name: 'HTTP (REST endpoint)', value: 'http' },
+        { name: 'SSE (Server-Sent Events)', value: 'sse' },
+        { name: 'SDK (in-process module)', value: 'sdk' }
+      ]
+    }
+  ]);
+
+  let serverConfig: MCPServerConfig;
+
+  if (transportType === 'stdio') {
+    const { command, args } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'command',
+        message: 'Command to run:',
+        default: 'npx',
+        validate: (input: string) => input.trim() ? true : 'Command is required'
+      },
+      {
+        type: 'input',
+        name: 'args',
+        message: 'Arguments (space-separated):',
+        default: '-y @modelcontextprotocol/server-filesystem'
+      }
+    ]);
+
+    serverConfig = {
+      type: 'stdio',
+      command: command.trim(),
+      args: args.trim() ? args.trim().split(/\\s+/) : [],
+      enabled: true
+    };
+  } else if (transportType === 'http' || transportType === 'sse') {
+    const { url } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'url',
+        message: 'Server URL:',
+        validate: (input: string) => {
+          if (!input.trim()) return 'URL is required';
+          try {
+            const testUrl = input.replace(/\\$\\{[^}]+\\}/g, 'placeholder');
+            new URL(testUrl);
+            return true;
+          } catch {
+            return 'Invalid URL format';
+          }
+        }
+      }
+    ]);
+
+    serverConfig = {
+      type: transportType,
+      url: url.trim(),
+      enabled: true
+    } as MCPServerConfig;
+  } else {
+    const { serverModule } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'serverModule',
+        message: 'Module path:',
+        default: './custom-mcp-server.js',
+        validate: (input: string) => input.trim() ? true : 'Module path is required'
+      }
+    ]);
+
+    serverConfig = {
+      type: 'sdk',
+      serverModule: serverModule.trim(),
+      enabled: true
+    };
+  }
+
+  // Step 3: Optional description
+  const { description } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'description',
+      message: 'Description (optional):'
+    }
+  ]);
+
+  if (description.trim()) {
+    serverConfig.description = description.trim();
+  }
+
+  await mcpConfig.addServer(name, serverConfig);
+  console.log(chalk.green(\`\\n✓ Server '\${name}' added successfully!\\n\`));
+  console.log(chalk.yellow('Note: Restart the agent to load the new server.\\n'));
+}
+
+async function handleMcpRemove(name?: string) {
+  const mcpConfig = new MCPConfigManager();
+  await mcpConfig.load();
+
+  const servers = Object.keys(mcpConfig.getServers());
+
+  if (servers.length === 0) {
+    console.log(chalk.yellow('\\nNo MCP servers configured.\\n'));
+    return;
+  }
+
+  let serverName = name?.trim();
+
+  if (!serverName) {
+    const { selected } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'selected',
+        message: 'Select server to remove:',
+        choices: servers
+      }
+    ]);
+    serverName = selected;
+  }
+
+  if (!servers.includes(serverName!)) {
+    console.log(chalk.red(\`\\nServer '\${serverName}' not found.\\n\`));
+    return;
+  }
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirm',
+      message: \`Remove server '\${serverName}'?\`,
+      default: false
+    }
+  ]);
+
+  if (confirm) {
+    await mcpConfig.removeServer(serverName!);
+    console.log(chalk.green(\`\\n✓ Server '\${serverName}' removed.\\n\`));
+  } else {
+    console.log(chalk.gray('\\nCancelled.\\n'));
+  }
+}
+
+async function handleMcpToggle(name?: string) {
+  const mcpConfig = new MCPConfigManager();
+  await mcpConfig.load();
+
+  const servers = mcpConfig.getServers();
+  const serverNames = Object.keys(servers);
+
+  if (serverNames.length === 0) {
+    console.log(chalk.yellow('\\nNo MCP servers configured.\\n'));
+    return;
+  }
+
+  let serverName = name?.trim();
+
+  if (!serverName) {
+    const { selected } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'selected',
+        message: 'Select server to toggle:',
+        choices: serverNames.map(n => ({
+          name: \`\${n} (\${servers[n].enabled !== false ? 'enabled' : 'disabled'})\`,
+          value: n
+        }))
+      }
+    ]);
+    serverName = selected;
+  }
+
+  if (!serverNames.includes(serverName!)) {
+    console.log(chalk.red(\`\\nServer '\${serverName}' not found.\\n\`));
+    return;
+  }
+
+  const wasEnabled = servers[serverName!].enabled !== false;
+  await mcpConfig.toggleServer(serverName!);
+  console.log(chalk.green(\`\\n✓ Server '\${serverName}' \${wasEnabled ? 'disabled' : 'enabled'}.\\n\`));
+  console.log(chalk.yellow('Note: Restart the agent to apply changes.\\n'));
 }
 
 // Planning mode helper functions
@@ -1232,6 +1499,7 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
 function generateClaudeAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   return `${imports.join('\n')}
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
+import { MCPConfigManager } from './mcp-config.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
@@ -1248,6 +1516,7 @@ export class ${className}Agent {
   private commandRunner: CommandRunner;` : ''}${hasKnowledge ? `
   private knowledgeTools: KnowledgeTools;` : ''}
   private customServer: ReturnType<typeof createSdkMcpServer>;
+  private mcpConfigManager: MCPConfigManager;
   private sessionId?: string;
 
   constructor(config: ${className}AgentConfig = {}) {
@@ -1268,17 +1537,67 @@ export class ${className}Agent {
 
     // Create SDK MCP server with custom tools
     this.customServer = this.createToolServer();
+
+    // Initialize MCP config manager
+    this.mcpConfigManager = new MCPConfigManager();
+  }
+
+  private async loadExternalMcpServers(): Promise<Record<string, any>> {
+    await this.mcpConfigManager.load();
+    const servers: Record<string, any> = {};
+
+    for (const [name, config] of Object.entries(this.mcpConfigManager.getEnabledServers())) {
+      const resolved = this.mcpConfigManager.resolveEnvVariables(config);
+
+      switch (resolved.type) {
+        case 'stdio':
+          servers[name] = {
+            command: resolved.command,
+            args: resolved.args || [],
+            env: resolved.env || {}
+          };
+          break;
+        case 'sse':
+          servers[name] = {
+            url: resolved.url,
+            transport: 'sse',
+            headers: resolved.headers || {}
+          };
+          break;
+        case 'http':
+          servers[name] = {
+            url: resolved.url,
+            transport: 'http',
+            headers: resolved.headers || {}
+          };
+          break;
+        case 'sdk':
+          try {
+            const mod = await import(resolved.serverModule);
+            servers[name] = mod.default || mod;
+          } catch (err) {
+            console.warn(\`Warning: Could not load SDK MCP server '\${name}': \${err}\`);
+          }
+          break;
+      }
+    }
+
+    return servers;
   }
 
   async *query(userQuery: string) {
     const systemPrompt = this.buildSystemPrompt();
+
+    // Load external MCP servers from .mcp.json
+    const externalMcpServers = await this.loadExternalMcpServers();
 
     const options: any = {
       model: '${config.model || 'claude-sonnet-4-5-20250929'}',
       cwd: process.cwd(),
       systemPrompt,
       mcpServers: {
-        'custom-tools': this.customServer
+        'custom-tools': this.customServer,
+        ...externalMcpServers
       },${hasWeb ? `
       // Enable built-in web search and fetch tools from Claude Agent SDK
       allowedTools: ['WebSearch', 'WebFetch'],` : ''}
@@ -3419,13 +3738,38 @@ ${config.license || 'MIT'}
 }
 
 function generateEnvExample(config: AgentConfig): string {
+  // Collect MCP server environment variables
+  const mcpEnvVars: string[] = [];
+  for (const server of config.mcpServers || []) {
+    if (server.transportType === 'stdio' && (server as any).env) {
+      for (const [key, value] of Object.entries((server as any).env)) {
+        if (typeof value === 'string' && value.includes('${')) {
+          // Extract variable name from ${VAR_NAME}
+          const matches = value.match(/\$\{([^}]+)\}/g);
+          if (matches) {
+            for (const match of matches) {
+              const varName = match.slice(2, -1).split(':-')[0];
+              if (!mcpEnvVars.includes(varName)) {
+                mcpEnvVars.push(varName);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const mcpEnvSection = mcpEnvVars.length > 0
+    ? `\n# MCP Server Environment Variables\n${mcpEnvVars.map(v => `# ${v}=your_${v.toLowerCase()}_here`).join('\n')}\n`
+    : '';
+
   return `# API Configuration
 ${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
 
 # Agent Settings
 VERBOSE=false
 LOG_LEVEL=info
-
+${mcpEnvSection}
 # Optional: Custom configuration
 # CONFIG_PATH=/path/to/custom/config
 `
@@ -4468,4 +4812,220 @@ function generateChartReportWorkflow(): string {
     requiresApproval: false
   };
   return JSON.stringify(workflow, null, 2);
+}
+
+// MCP Configuration Manager
+function generateMcpConfigManager(): string {
+  return `import * as fs from 'fs';
+import * as path from 'path';
+
+export type MCPServerType = 'stdio' | 'http' | 'sse' | 'sdk';
+
+export interface MCPServerBase {
+  type: MCPServerType;
+  enabled?: boolean;
+  description?: string;
+}
+
+export interface MCPStdioServer extends MCPServerBase {
+  type: 'stdio';
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export interface MCPHttpServer extends MCPServerBase {
+  type: 'http';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export interface MCPSseServer extends MCPServerBase {
+  type: 'sse';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export interface MCPSdkServer extends MCPServerBase {
+  type: 'sdk';
+  serverModule: string;
+}
+
+export type MCPServerConfig = MCPStdioServer | MCPHttpServer | MCPSseServer | MCPSdkServer;
+
+export interface MCPConfig {
+  mcpServers: Record<string, MCPServerConfig>;
+}
+
+export class MCPConfigManager {
+  private configPath: string;
+  private config: MCPConfig = { mcpServers: {} };
+
+  constructor(configPath?: string) {
+    this.configPath = configPath || path.join(process.cwd(), '.mcp.json');
+  }
+
+  async load(): Promise<MCPConfig> {
+    try {
+      if (fs.existsSync(this.configPath)) {
+        const content = fs.readFileSync(this.configPath, 'utf-8');
+        this.config = JSON.parse(content);
+      }
+    } catch (error) {
+      console.warn(\`Warning: Could not load MCP config from \${this.configPath}\`);
+    }
+    return this.config;
+  }
+
+  async save(): Promise<void> {
+    fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+  }
+
+  getServers(): Record<string, MCPServerConfig> {
+    return this.config.mcpServers || {};
+  }
+
+  getEnabledServers(): Record<string, MCPServerConfig> {
+    const servers: Record<string, MCPServerConfig> = {};
+    for (const [name, config] of Object.entries(this.config.mcpServers || {})) {
+      if (config.enabled !== false) {
+        servers[name] = config;
+      }
+    }
+    return servers;
+  }
+
+  async addServer(name: string, config: MCPServerConfig): Promise<void> {
+    this.config.mcpServers[name] = { ...config, enabled: true };
+    await this.save();
+  }
+
+  async removeServer(name: string): Promise<boolean> {
+    if (this.config.mcpServers[name]) {
+      delete this.config.mcpServers[name];
+      await this.save();
+      return true;
+    }
+    return false;
+  }
+
+  async toggleServer(name: string, enabled?: boolean): Promise<boolean> {
+    if (this.config.mcpServers[name]) {
+      const current = this.config.mcpServers[name].enabled !== false;
+      this.config.mcpServers[name].enabled = enabled !== undefined ? enabled : !current;
+      await this.save();
+      return true;
+    }
+    return false;
+  }
+
+  resolveEnvVariables(config: MCPServerConfig): MCPServerConfig {
+    const resolved = JSON.parse(JSON.stringify(config));
+
+    const resolveValue = (value: string): string => {
+      return value.replace(/\\$\\{([^}]+)\\}/g, (match, varName) => {
+        // Support default values: \${VAR:-default}
+        const [name, defaultValue] = varName.split(':-');
+        return process.env[name] || defaultValue || match;
+      });
+    };
+
+    const resolveObject = (obj: any): any => {
+      if (typeof obj === 'string') {
+        return resolveValue(obj);
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(resolveObject);
+      }
+      if (obj && typeof obj === 'object') {
+        const result: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          result[key] = resolveObject(value);
+        }
+        return result;
+      }
+      return obj;
+    };
+
+    return resolveObject(resolved);
+  }
+
+  formatServerList(): string {
+    const servers = this.getServers();
+    const entries = Object.entries(servers);
+
+    if (entries.length === 0) {
+      return 'No MCP servers configured.';
+    }
+
+    return entries.map(([name, config]) => {
+      const status = config.enabled !== false ? '●' : '○';
+      const statusText = config.enabled !== false ? 'enabled' : 'disabled';
+      const typeLabel = config.type.toUpperCase();
+
+      let details = '';
+      switch (config.type) {
+        case 'stdio':
+          details = \`Command: \${config.command}\${config.args?.length ? ' ' + config.args.join(' ') : ''}\`;
+          break;
+        case 'http':
+        case 'sse':
+          details = \`URL: \${config.url}\`;
+          break;
+        case 'sdk':
+          details = \`Module: \${config.serverModule}\`;
+          break;
+      }
+
+      return \`\${status} \${name} (\${typeLabel}) - \${statusText}\\n   \${config.description || ''}\\n   \${details}\`;
+    }).join('\\n\\n');
+  }
+}
+`;
+}
+
+function generateMcpJson(config: AgentConfig): string {
+  const mcpServers: Record<string, any> = {};
+
+  // Convert the configured MCP servers to .mcp.json format
+  for (const server of config.mcpServers || []) {
+    if (!server.enabled) continue;
+
+    switch (server.transportType) {
+      case 'stdio':
+        mcpServers[server.name] = {
+          type: 'stdio',
+          command: (server as any).command || '',
+          args: (server as any).args || [],
+          env: (server as any).env || {},
+          description: server.description || ''
+        };
+        break;
+      case 'http':
+        mcpServers[server.name] = {
+          type: 'http',
+          url: (server as any).url || '',
+          headers: (server as any).headers || {},
+          description: server.description || ''
+        };
+        break;
+      case 'sse':
+        mcpServers[server.name] = {
+          type: 'sse',
+          url: (server as any).url || '',
+          headers: (server as any).headers || {},
+          description: server.description || ''
+        };
+        break;
+      case 'sdk':
+        mcpServers[server.name] = {
+          type: 'sdk',
+          serverModule: (server as any).serverModule || '',
+          description: server.description || ''
+        };
+        break;
+    }
+  }
+
+  return JSON.stringify({ mcpServers }, null, 2);
 }

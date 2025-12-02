@@ -10,9 +10,10 @@ import {
 } from '@heroicons/react/24/outline'
 import { AgentConfig, WizardStep } from '@/types/agent'
 import { DomainSelection } from './steps/DomainSelection'
-import { TemplateSelection } from './steps/TemplateSelection' 
+import { TemplateSelection } from './steps/TemplateSelection'
 import { SDKConfiguration } from './steps/SDKConfiguration'
 import { ToolConfiguration } from './steps/ToolConfiguration'
+import { MCPConfiguration } from './steps/MCPConfiguration'
 import { ProjectSettings } from './steps/ProjectSettings'
 import { PreviewAndGenerate } from './steps/PreviewAndGenerate'
 import { useAgentStore } from '@/lib/store'
@@ -59,7 +60,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
       id: 'tools',
       title: 'Configure Tools',
       description: 'Select capabilities for your agent',
-      component: ToolConfiguration, 
+      component: ToolConfiguration,
       isComplete: (config) => !!(config.tools && config.tools.some(t => t.enabled)),
       validation: (config) => {
         if (!config.tools?.some(t => t.enabled)) {
@@ -67,6 +68,14 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
         }
         return []
       }
+    },
+    {
+      id: 'mcp',
+      title: 'MCP Servers',
+      description: 'Connect to Model Context Protocol servers',
+      component: MCPConfiguration,
+      isComplete: () => true, // Optional step, always complete
+      validation: () => [] // No validation required
     },
     {
       id: 'project',

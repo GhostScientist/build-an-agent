@@ -16,6 +16,7 @@ async function main() {
     model: 'claude-sonnet-4.5',
     interface: 'cli',
     tools,
+    mcpServers: [],
     customInstructions: '',
     specialization: 'Smoke test specialization',
     permissions: 'restrictive',

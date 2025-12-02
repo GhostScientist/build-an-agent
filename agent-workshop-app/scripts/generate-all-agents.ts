@@ -333,6 +333,7 @@ async function generateAllAgents() {
       model: 'claude-sonnet-4-5-20250929',
       interface: 'cli',
       tools,
+      mcpServers: [],
       customInstructions: '',
       specialization: agentConfig.specialization,
       permissions: 'balanced',

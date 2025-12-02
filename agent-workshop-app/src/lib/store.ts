@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { AgentConfig, AgentDomain, SDKProvider, AgentInterface, AVAILABLE_TOOLS } from '@/types/agent'
+import { AgentConfig, AgentDomain, SDKProvider, AgentInterface, AVAILABLE_TOOLS, MCPServer } from '@/types/agent'
 
 interface AgentStore {
   config: Partial<AgentConfig>
@@ -9,6 +9,11 @@ interface AgentStore {
   setTemplate: (templateId: string) => void
   setSDKProvider: (provider: SDKProvider) => void
   toggleTool: (toolId: string) => void
+  // MCP Server methods
+  addMCPServer: (server: MCPServer) => void
+  updateMCPServer: (id: string, updates: Partial<MCPServer>) => void
+  removeMCPServer: (id: string) => void
+  toggleMCPServer: (id: string) => void
 }
 
 const initialConfig: Partial<AgentConfig> = {
@@ -20,6 +25,7 @@ const initialConfig: Partial<AgentConfig> = {
   model: undefined,
   interface: 'cli',
   tools: AVAILABLE_TOOLS.map(tool => ({ ...tool, enabled: tool.enabled })),
+  mcpServers: [],
   customInstructions: '',
   specialization: '',
   permissions: 'balanced',
@@ -65,12 +71,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   
   toggleTool: (toolId) => {
     set(state => {
-      const tools = state.config.tools?.map(tool => 
-        tool.id === toolId 
+      const tools = state.config.tools?.map(tool =>
+        tool.id === toolId
           ? { ...tool, enabled: !tool.enabled }
           : tool
       ) || []
-      
+
       return {
         config: {
           ...state.config,
@@ -78,6 +84,47 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         }
       }
     })
+  },
+
+  // MCP Server methods
+  addMCPServer: (server) => {
+    set(state => ({
+      config: {
+        ...state.config,
+        mcpServers: [...(state.config.mcpServers || []), server]
+      }
+    }))
+  },
+
+  updateMCPServer: (id, updates) => {
+    set(state => ({
+      config: {
+        ...state.config,
+        mcpServers: state.config.mcpServers?.map(server =>
+          server.id === id ? { ...server, ...updates } as MCPServer : server
+        ) || []
+      }
+    }))
+  },
+
+  removeMCPServer: (id) => {
+    set(state => ({
+      config: {
+        ...state.config,
+        mcpServers: state.config.mcpServers?.filter(server => server.id !== id) || []
+      }
+    }))
+  },
+
+  toggleMCPServer: (id) => {
+    set(state => ({
+      config: {
+        ...state.config,
+        mcpServers: state.config.mcpServers?.map(server =>
+          server.id === id ? { ...server, enabled: !server.enabled } : server
+        ) || []
+      }
+    }))
   },
 }))
 
@@ -128,6 +175,66 @@ export const validateConfig = (config: Partial<AgentConfig>): string[] => {
   if (config.projectName && !/^[a-z][a-z0-9-]*$/.test(config.projectName)) {
     errors.push('Project name must be lowercase, start with a letter, and contain only letters, numbers, and hyphens')
   }
-  
+
+  return errors
+}
+
+// MCP Server helper functions
+export const getEnabledMCPServers = (config: Partial<AgentConfig>) => {
+  return config.mcpServers?.filter(server => server.enabled) || []
+}
+
+export const getMCPServersByCategory = (config: Partial<AgentConfig>) => {
+  const servers = config.mcpServers || []
+  return servers.reduce((acc, server) => {
+    // Group by transport type for display
+    const category = server.transportType
+    if (!acc[category]) {
+      acc[category] = []
+    }
+    acc[category].push(server)
+    return acc
+  }, {} as Record<string, typeof servers>)
+}
+
+export const validateMCPServer = (server: MCPServer): string[] => {
+  const errors: string[] = []
+
+  if (!server.name?.trim()) {
+    errors.push('Server name is required')
+  }
+
+  // Validate name format (lowercase, alphanumeric, hyphens)
+  if (server.name && !/^[a-z][a-z0-9-]*$/.test(server.name)) {
+    errors.push('Server name must be lowercase, start with a letter, and contain only letters, numbers, and hyphens')
+  }
+
+  switch (server.transportType) {
+    case 'stdio':
+      if (!server.command?.trim()) {
+        errors.push('Command is required for stdio transport')
+      }
+      break
+    case 'http':
+    case 'sse':
+      if (!server.url?.trim()) {
+        errors.push('URL is required')
+      } else {
+        try {
+          // Allow ${VAR} placeholders in URL
+          const urlToTest = server.url.replace(/\$\{[^}]+\}/g, 'placeholder')
+          new URL(urlToTest)
+        } catch {
+          errors.push('Invalid URL format')
+        }
+      }
+      break
+    case 'sdk':
+      if (!server.serverModule?.trim()) {
+        errors.push('Server module path is required')
+      }
+      break
+  }
+
   return errors
 }

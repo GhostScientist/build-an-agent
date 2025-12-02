@@ -34,6 +34,7 @@ function buildConfig(templateId: string): AgentConfig {
     model: 'claude-sonnet-4.5-20250929',
     interface: 'cli',
     tools,
+    mcpServers: [],
     customInstructions: '',
     specialization: template.documentation,
     permissions: template.domain === 'development' ? 'balanced' : 'restrictive',
