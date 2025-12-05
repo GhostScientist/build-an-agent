@@ -1,7 +1,11 @@
-import type { AgentConfig, GeneratedProject, GeneratedFile, ProjectMetadata, AgentTemplate } from '../types.js';
-import { AGENT_TEMPLATES } from '../data/agent-templates.js';
-
-const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
+import type {
+  AgentConfig,
+  GeneratedProject,
+  GeneratedFile,
+  ProjectMetadata,
+  AgentTemplate,
+} from '../types/index.js';
+import { AGENT_TEMPLATES, KNOWLEDGE_TOOL_IDS } from '../data/index.js';
 
 // Helper function to sanitize names for use in TypeScript class names and identifiers
 function sanitizeClassName(name: string): string {

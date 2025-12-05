@@ -1,29 +1,7 @@
-import type { DomainChoice } from '../types.js';
+/**
+ * Re-export from shared package for backwards compatibility
+ */
+export { DOMAINS, getDomainInfo, type DomainInfo } from '@agent-workshop/shared';
 
-export const DOMAINS: DomainChoice[] = [
-  {
-    value: 'development',
-    name: 'Development',
-    hint: 'Code review, testing, debugging, modernization',
-  },
-  {
-    value: 'business',
-    name: 'Business',
-    hint: 'Document processing, reports, data entry',
-  },
-  {
-    value: 'creative',
-    name: 'Creative',
-    hint: 'Content creation, copywriting, social media',
-  },
-  {
-    value: 'data',
-    name: 'Data',
-    hint: 'Analysis, visualization, ML pipelines',
-  },
-  {
-    value: 'knowledge',
-    name: 'Knowledge',
-    hint: 'Research, literature review, citations',
-  },
-];
+// Alias for backwards compatibility
+export type DomainChoice = import('@agent-workshop/shared').DomainInfo;

@@ -1,6 +1,6 @@
 import Enquirer from 'enquirer';
-import { DOMAINS } from '../data/domains.js';
-import type { AgentDomain } from '../types.js';
+import { DOMAINS } from '@agent-workshop/shared';
+import type { AgentDomain } from '@agent-workshop/shared';
 import { styles } from '../utils/styles.js';
 
 const { prompt } = Enquirer;

@@ -1,6 +1,6 @@
 import Enquirer from 'enquirer';
 import { getModelsForProvider } from '../data/models.js';
-import type { SDKProvider } from '../types.js';
+import type { SDKProvider } from '@agent-workshop/shared';
 import { styles } from '../utils/styles.js';
 
 const { prompt } = Enquirer;

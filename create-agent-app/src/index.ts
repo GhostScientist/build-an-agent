@@ -11,7 +11,7 @@ import { promptTemplate } from './prompts/template.js';
 import { promptSDK } from './prompts/sdk.js';
 import { promptTools } from './prompts/tools.js';
 import { generateProject } from './generator/index.js';
-import type { AgentConfig } from './types.js';
+import type { AgentConfig } from '@agent-workshop/shared';
 
 const VERSION = '1.0.0';
 

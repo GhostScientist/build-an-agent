@@ -2,6 +2,7 @@
   "name": "agent-workshop",
   "private": true,
   "workspaces": [
+    "packages/shared",
     "agent-workshop-app",
     "create-agent-app"
   ]

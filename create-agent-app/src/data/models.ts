@@ -1,4 +1,11 @@
-import type { SDKProvider, ModelChoice } from '../types.js';
+import type { SDKProvider } from '@agent-workshop/shared';
+
+// CLI-specific type for model selection UI
+export interface ModelChoice {
+  value: string;
+  name: string;
+  hint?: string;
+}
 
 export const CLAUDE_MODELS: ModelChoice[] = [
   {

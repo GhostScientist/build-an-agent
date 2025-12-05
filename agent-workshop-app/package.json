@@ -22,6 +22,7 @@
     "generate:agents:openai": "tsx scripts/generate-all-agents.ts --provider openai"
   },
   "dependencies": {
+    "@agent-workshop/shared": "*",
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
     "@monaco-editor/react": "^4.6.0",

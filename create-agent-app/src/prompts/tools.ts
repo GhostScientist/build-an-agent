@@ -1,6 +1,6 @@
 import Enquirer from 'enquirer';
-import { AVAILABLE_TOOLS, getToolsByIds } from '../data/tools.js';
-import type { AgentTool, PermissionLevel } from '../types.js';
+import { AVAILABLE_TOOLS } from '@agent-workshop/shared';
+import type { AgentTool, PermissionLevel } from '@agent-workshop/shared';
 import { styles, getRiskLabel } from '../utils/styles.js';
 
 const { prompt } = Enquirer;

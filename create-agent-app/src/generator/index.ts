@@ -1,9 +1,9 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
-import type { AgentConfig } from '../types.js';
+import { generateAgentProject } from '@agent-workshop/shared';
+import type { AgentConfig } from '@agent-workshop/shared';
 import { withSpinner } from '../utils/spinner.js';
-import { generateAgentProject } from './webapp-generator.js';
 
 export async function generateProject(
   targetDir: string,

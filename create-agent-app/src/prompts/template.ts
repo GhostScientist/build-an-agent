@@ -1,6 +1,6 @@
 import Enquirer from 'enquirer';
-import { getTemplatesForDomain } from '../data/agent-templates.js';
-import type { AgentDomain, AgentTemplate } from '../types.js';
+import { getTemplatesForDomain } from '@agent-workshop/shared';
+import type { AgentDomain, AgentTemplate } from '@agent-workshop/shared';
 import { styles } from '../utils/styles.js';
 
 const { prompt } = Enquirer;
