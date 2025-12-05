@@ -218,8 +218,8 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
-              An educational platform and creation tool for building production-ready AI agent CLIs.
-              Learn what goes into agentic systems, then ship with confidence. <br />
+              An educational platform for building AI agent CLIs.
+              Explore what goes into agentic systems and ship when you&apos;re ready. <br />
               <span className="font-semibold text-foreground">Free and open-source.</span>
             </motion.p>
 
@@ -333,7 +333,7 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-lg text-muted-foreground max-w-3xl mx-auto"
             >
-              An exploration tool for understanding agentic workflows—not a magic solution.
+              An exploration tool for understanding agentic workflows. Not a magic solution.
             </motion.p>
           </div>
 
@@ -350,7 +350,7 @@ export default function HomePage() {
               <ul className="space-y-3 text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-amber-500 mt-1">•</span>
-                  <span>Agents can make mistakes and hallucinate—always verify outputs</span>
+                  <span>Agents can make mistakes and hallucinate. Always verify outputs</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-amber-500 mt-1">•</span>
@@ -453,7 +453,7 @@ export default function HomePage() {
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Generated agents include sophisticated slash command workflows for multi-step operations.
-              Built on Claude Agent SDK and OpenAI Agents API with MCP tools, streaming, and production-grade security.
+              Built on Claude Agent SDK and OpenAI Agents API with MCP tools, streaming, and configurable security.
             </p>
           </div>
           
@@ -616,7 +616,7 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-lg text-muted-foreground max-w-3xl mx-auto"
             >
-              Claude Code agents are shaped by 5 control mechanisms—each serving a distinct purpose in the agentic workflow.
+              Claude Code agents are shaped by 5 control mechanisms. Each serves a distinct purpose in the agentic workflow.
               Click a lever to learn when and how to use it.
             </motion.p>
           </div>
@@ -798,8 +798,8 @@ export default function HomePage() {
               Ready to Build Your Workflow-Powered Agent?
             </h3>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Choose your domain, select a template with pre-built workflows, configure tools—then download a production-ready
-              TypeScript CLI with slash commands, multi-step orchestration, and enterprise security.
+              Choose your domain, select a template with pre-built workflows, and configure tools.
+              Download a TypeScript CLI with slash commands, multi-step orchestration, and configurable security.
             </p>
             <button
               onClick={() => setShowBuilder(true)}
@@ -823,9 +823,9 @@ export default function HomePage() {
           >
             <h3 className="text-2xl font-bold tracking-tight mb-6">Our Vision</h3>
             <p className="text-muted-foreground mb-8">
-              Build An Agent Workshop is more than a tool—it&apos;s an educational resource for understanding
-              what goes into production-grade AI agents. We believe in understanding before automation,
-              open-source community-driven development, and the future of local-first, offline-capable AI tooling.
+              Build An Agent Workshop is an educational resource for understanding what goes into AI agents.
+              We believe in learning before automating, open-source community-driven development,
+              and the future of local-first, offline-capable AI tooling.
             </p>
             <div className="flex flex-wrap gap-4 justify-center text-sm">
               <div className="px-4 py-2 rounded-full bg-background border">
@@ -880,13 +880,13 @@ const features = [
     icon: CodeBracketIcon,
   },
   {
-    title: 'Production-Ready Security',
+    title: 'Configurable Security',
     description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
     icon: CogIcon,
   },
   {
     title: 'SDK-Native & Customizable',
-    description: 'Built on official Claude Agent SDK and OpenAI Agents API with MCP tool integration. Download complete TypeScript source—modify prompts, add tools, or extend workflows from day one.',
+    description: 'Built on official Claude Agent SDK and OpenAI Agents API with MCP tool integration. Download complete TypeScript source. Modify prompts, add tools, or extend workflows from day one.',
     icon: RocketLaunchIcon,
   },
 ]
@@ -935,7 +935,7 @@ const securityHeuristics = [
   {
     id: 'minimize',
     brief: 'Minimize agent permissions by default',
-    expanded: 'Start with read-only access and add write capabilities only when needed. The principle of least privilege applies doubly to autonomous agents—give them only what they need for the specific task.',
+    expanded: 'Start with read-only access and add write capabilities only when needed. The principle of least privilege applies doubly to autonomous agents. Give them only what they need for the specific task.',
     link: {
       label: 'OWASP principle of least privilege',
       url: 'https://owasp.org/www-community/Access_Control',
@@ -1042,13 +1042,13 @@ const personas = [
     role: 'Domain Specialist',
     icon: BriefcaseIcon,
     gradient: 'bg-gradient-to-br from-green-500 to-emerald-600',
-    scenario: 'Document processing, report generation, and workflow automation for repetitive business tasks.',
+    scenario: 'Document processing, report generation, and workflow automation for repetitive tasks.',
     promptPrefix: 'docs',
     terminalTitle: 'Document Processing Agent',
     steps: [
       {
         title: 'Identify the repetitive task',
-        description: 'Invoice processing, report extraction, data entry—pick your pain point.',
+        description: 'Invoice processing, report extraction, or data entry. Pick your pain point.',
       },
       {
         title: 'Define input/output format',
@@ -1078,13 +1078,13 @@ const personas = [
     role: 'Tech Enthusiast',
     icon: SparklesIcon,
     gradient: 'bg-gradient-to-br from-purple-500 to-pink-600',
-    scenario: 'Personal productivity tools, home automation scripts, and learning experiments with AI.',
+    scenario: 'Personal productivity tools, home automation scripts, and learning experiments.',
     promptPrefix: 'helper',
     terminalTitle: 'Personal Assistant Agent',
     steps: [
       {
         title: 'Pick a personal pain point',
-        description: 'RSS digests, bookmark organization, note summarization—start with something you do often.',
+        description: 'RSS digests, bookmark organization, or note summarization. Start with something you do often.',
       },
       {
         title: 'Start with a simple agent',
