@@ -1,0 +1,7 @@
+[build]
+  base = "agent-workshop-app"
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "18"
