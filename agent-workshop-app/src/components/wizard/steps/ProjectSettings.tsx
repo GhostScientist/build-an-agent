@@ -1,11 +1,10 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { 
+import {
   FolderIcon,
   UserIcon,
   DocumentTextIcon,
-  TagIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline'
 import { AgentConfig } from '@/types/agent'
@@ -178,7 +177,7 @@ export function ProjectSettings({ config, updateConfig, onNext }: ProjectSetting
           </div>
         </motion.div>
 
-        {/* License & Advanced */}
+        {/* License */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -187,81 +186,27 @@ export function ProjectSettings({ config, updateConfig, onNext }: ProjectSetting
         >
           <div className="flex items-center space-x-3 mb-4">
             <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-            <h4 className="text-lg font-semibold text-gray-900">License & Metadata</h4>
+            <h4 className="text-lg font-semibold text-gray-900">License</h4>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                License
-              </label>
-              <select
-                value={config.license || 'MIT'}
-                onChange={(e) => updateConfig({ license: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="MIT">MIT</option>
-                <option value="Apache-2.0">Apache 2.0</option>
-                <option value="GPL-3.0">GPL 3.0</option>
-                <option value="BSD-3-Clause">BSD 3-Clause</option>
-                <option value="ISC">ISC</option>
-                <option value="Unlicense">Unlicense</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Interface Type
-              </label>
-              <select
-                value={config.interface || 'cli'}
-                onChange={(e) => updateConfig({ interface: e.target.value as AgentConfig['interface'] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="cli">Command Line Interface</option>
-                <option value="web">Web Application</option>
-                <option value="api">REST API</option>
-                <option value="discord">Discord Bot</option>
-                <option value="slack">Slack Bot</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              License
+            </label>
+            <select
+              value={config.license || 'MIT'}
+              onChange={(e) => updateConfig({ license: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="MIT">MIT</option>
+              <option value="Apache-2.0">Apache 2.0</option>
+              <option value="GPL-3.0">GPL 3.0</option>
+              <option value="BSD-3-Clause">BSD 3-Clause</option>
+              <option value="ISC">ISC</option>
+              <option value="Unlicense">Unlicense</option>
+            </select>
           </div>
         </motion.div>
-
-        {/* Domain-Specific Configuration */}
-        {config.domain === 'development' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-blue-50 rounded-xl p-6"
-          >
-            <div className="flex items-center space-x-3 mb-4">
-              <TagIcon className="w-5 h-5 text-blue-600" />
-              <h4 className="text-lg font-semibold text-blue-900">Development Agent Settings</h4>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-blue-700 mb-2">
-                  Specialization Focus
-                </label>
-                <select
-                  value={config.specialization || ''}
-                  onChange={(e) => updateConfig({ specialization: e.target.value })}
-                  className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">General Development</option>
-                  <option value="frontend">Frontend (React, Vue, Angular)</option>
-                  <option value="backend">Backend (Node.js, Python, Java)</option>
-                  <option value="mobile">Mobile (iOS, Android, React Native)</option>
-                  <option value="devops">DevOps & Infrastructure</option>
-                  <option value="data">Data Science & ML</option>
-                </select>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Validation Summary */}
         <motion.div
@@ -278,7 +223,6 @@ export function ProjectSettings({ config, updateConfig, onNext }: ProjectSetting
                 <p>✓ Agent Name: {config.name || 'Not set'}</p>
                 <p>✓ Project Name: {config.projectName || 'Not set'}</p>
                 <p>✓ Author: {config.author || 'Not set'}</p>
-                <p>✓ Interface: {config.interface || 'CLI'}</p>
               </div>
             </div>
           </div>

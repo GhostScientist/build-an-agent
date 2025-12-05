@@ -1,0 +1,51 @@
+{
+  "name": "create-agent-app",
+  "version": "1.0.0",
+  "description": "Create AI agents with the Claude Agent SDK or OpenAI Agents SDK",
+  "author": "Agent Workshop",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "create-agent-app": "./bin/create-agent-app.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "enquirer": "^2.4.1",
+    "fs-extra": "^11.2.0",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.10.4",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "claude",
+    "openai",
+    "cli",
+    "create",
+    "generator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agent-workshop/agent-workshop"
+  },
+  "homepage": "https://agent-workshop.dev"
+}

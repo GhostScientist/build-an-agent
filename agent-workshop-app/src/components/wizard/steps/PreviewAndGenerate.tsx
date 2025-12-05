@@ -160,10 +160,6 @@ export function PreviewAndGenerate({ config, updateConfig, onNext }: PreviewAndG
                 <span className="text-gray-600">Template:</span>
                 <span className="font-medium text-gray-900">{selectedTemplate?.name || 'Custom'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Interface:</span>
-                <span className="font-medium text-gray-900 uppercase">{config.interface}</span>
-              </div>
             </div>
           </motion.div>
 

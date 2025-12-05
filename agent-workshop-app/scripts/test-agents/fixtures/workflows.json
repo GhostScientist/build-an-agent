@@ -1,0 +1,32 @@
+{
+  "category": "workflows",
+  "description": "Slash command and workflow tests to validate CLI parsing and workflow execution",
+  "tests": [
+    {
+      "name": "help-command",
+      "prompt": "/help",
+      "assertions": [
+        { "type": "containsAny", "values": ["Available", "Commands", "help", "/quit", "/plan", "Usage"] }
+      ],
+      "estimatedTokens": 100,
+      "note": "CLI command parsing - minimal tokens"
+    },
+    {
+      "name": "quit-command-recognition",
+      "prompt": "/quit",
+      "assertions": [
+        { "type": "containsAny", "values": ["Goodbye", "bye", "exit", "quit", "session"] }
+      ],
+      "estimatedTokens": 50,
+      "note": "Tests CLI exit handling"
+    },
+    {
+      "name": "plan-command",
+      "prompt": "/plan Create a simple hello world function",
+      "assertions": [
+        { "type": "containsAny", "values": ["plan", "step", "task", "creating", "function", "hello"] }
+      ],
+      "estimatedTokens": 500
+    }
+  ]
+}

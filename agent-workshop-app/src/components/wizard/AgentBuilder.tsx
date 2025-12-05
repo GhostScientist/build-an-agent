@@ -72,7 +72,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
     {
       id: 'mcp',
       title: 'MCP Servers',
-      description: 'Connect to Model Context Protocol servers',
+      description: 'Connect to Model Context Protocol servers (optional)',
       component: MCPConfiguration,
       isComplete: () => true, // Optional step, always complete
       validation: () => [] // No validation required

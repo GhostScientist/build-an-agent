@@ -287,10 +287,6 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
                           <span className="text-gray-600">AI Provider:</span>
                           <span className="font-medium">{project.config.sdkProvider}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Interface:</span>
-                          <span className="font-medium uppercase">{project.config.interface}</span>
-                        </div>
                       </div>
                       <div className="space-y-3">
                         <div className="flex justify-between">

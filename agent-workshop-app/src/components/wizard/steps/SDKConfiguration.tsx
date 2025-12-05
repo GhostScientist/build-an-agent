@@ -57,14 +57,14 @@ const sdkProviders = [
   },
   {
     id: 'openai' as SDKProvider,
-    name: 'OpenAI SDK',
-    description: 'OpenAI GPT models with function calling capabilities and assistants API for powerful agent development.',
+    name: 'OpenAI Agents SDK',
+    description: 'OpenAI GPT models with the official Agents SDK for powerful agent development.',
     icon: '🤖',
     gradient: 'from-green-500 to-emerald-600',
     pros: [
-      'Assistants API for stateful conversations',
+      'Official OpenAI agent framework',
       'Advanced function calling system',
-      'Code interpreter and file handling',
+      'Streaming and tool use support',
       'Large ecosystem and community'
     ],
     models: [

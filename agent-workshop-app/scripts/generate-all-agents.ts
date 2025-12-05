@@ -1,9 +1,47 @@
 import { generateAgentProject } from '../src/lib/generator'
-import { AVAILABLE_TOOLS, type AgentConfig } from '../src/types/agent'
+import { AVAILABLE_TOOLS, type AgentConfig, type SDKProvider } from '../src/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 
 const OUTPUT_DIR = path.join(__dirname, '../../GENERATED_AGENTS')
+
+// Parse CLI arguments
+function parseArgs(): { provider: SDKProvider | 'both'; templates?: string[] } {
+  const args = process.argv.slice(2)
+  let provider: SDKProvider | 'both' = 'both'
+  let templates: string[] | undefined
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--provider' && args[i + 1]) {
+      const p = args[i + 1]
+      if (p === 'claude' || p === 'openai' || p === 'both') {
+        provider = p
+      }
+      i++
+    } else if (args[i] === '--template' && args[i + 1]) {
+      templates = templates || []
+      templates.push(args[i + 1])
+      i++
+    } else if (args[i] === '--help' || args[i] === '-h') {
+      console.log(`
+Usage: tsx scripts/generate-all-agents.ts [options]
+
+Options:
+  --provider <name>   Generate for 'claude', 'openai', or 'both' (default: both)
+  --template <id>     Generate specific template(s) only (can repeat)
+  --help, -h          Show this help
+
+Examples:
+  tsx scripts/generate-all-agents.ts --provider claude
+  tsx scripts/generate-all-agents.ts --provider openai
+  tsx scripts/generate-all-agents.ts --template development-agent --provider both
+`)
+      process.exit(0)
+    }
+  }
+
+  return { provider, templates }
+}
 
 // Test prompts for each agent type
 const TEST_PROMPTS: Record<string, string[]> = {
@@ -12,6 +50,13 @@ const TEST_PROMPTS: Record<string, string[]> = {
     'What are the main files in this project and their purposes?',
     'Search for any deprecated API usage in JavaScript files',
     '/code-audit --path . --focus security',
+  ],
+  'eqe-modernization': [
+    'What are your capabilities as an enterprise modernization agent?',
+    '/dare-status',
+    '/dare-discover --target .',
+    'Analyze this codebase and identify the technology stack being used',
+    'What DARE methodology phases can you help me with?',
   ],
   'document-processing-agent': [
     'List all PDF and text files in the current directory',
@@ -121,6 +166,14 @@ const AGENT_CONFIGS: Array<{
     description: 'Analyze and modernize legacy codebases',
     specialization: 'Legacy code analysis and modernization strategies',
     tools: ['read-file', 'find-files', 'search-files', 'write-file', 'edit-file', 'run-command', 'git-operations'],
+  },
+  {
+    templateId: 'eqe-modernization',
+    domain: 'development',
+    name: 'Enterprise Modernization Agent (DARE)',
+    description: 'Technology-agnostic enterprise modernization using DARE methodology',
+    specialization: 'DARE methodology with subagent architecture and full traceability',
+    tools: ['read-file', 'find-files', 'search-files', 'write-file', 'edit-file', 'run-command', 'git-operations', 'web-search', 'web-fetch', 'doc-ingest', 'source-notes'],
   },
   {
     templateId: 'document-processing-agent',
@@ -307,72 +360,104 @@ If you encounter issues:
   fs.writeFileSync(path.join(outputPath, 'TEST_PROMPTS.md'), content)
 }
 
+async function generateAgentForProvider(
+  agentConfig: typeof AGENT_CONFIGS[0],
+  provider: SDKProvider
+): Promise<void> {
+  const suffix = provider === 'openai' ? '-openai' : ''
+  const dirName = `${agentConfig.templateId}${suffix}`
+
+  console.log(`📦 Generating ${dirName} (${provider})...`)
+
+  // Build tools array
+  const tools = AVAILABLE_TOOLS.map(tool => ({
+    ...tool,
+    enabled: agentConfig.tools.includes(tool.id),
+  }))
+
+  // Model selection based on provider
+  const model = provider === 'claude'
+    ? 'claude-sonnet-4-5-20250929'
+    : 'gpt-4.1'
+
+  const config: AgentConfig = {
+    name: agentConfig.name,
+    description: agentConfig.description,
+    domain: agentConfig.domain as any,
+    templateId: agentConfig.templateId,
+    sdkProvider: provider,
+    model,
+    tools,
+    mcpServers: [],
+    customInstructions: '',
+    permissions: 'balanced',
+    maxTokens: 4096,
+    temperature: 0.3,
+    projectName: dirName,
+    packageName: dirName,
+    version: '1.0.0',
+    author: 'Build-An-Agent Workshop',
+    license: 'MIT',
+  }
+
+  try {
+    const project = await generateAgentProject(config)
+    const outputPath = path.join(OUTPUT_DIR, dirName)
+
+    // Create project directory
+    if (!fs.existsSync(outputPath)) {
+      fs.mkdirSync(outputPath, { recursive: true })
+    }
+
+    // Write all generated files
+    for (const file of project.files) {
+      const filePath = path.join(outputPath, file.path)
+      const dirPath = path.dirname(filePath)
+
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true })
+      }
+
+      fs.writeFileSync(filePath, file.content)
+    }
+
+    // Create test prompts file
+    createTestPromptsFile(agentConfig.templateId, outputPath)
+
+    console.log(`   ✅ Generated ${project.files.length} files + TEST_PROMPTS.md`)
+  } catch (error) {
+    console.error(`   ❌ Failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 async function generateAllAgents() {
-  console.log('🚀 Generating all agent variants...\n')
+  const { provider, templates } = parseArgs()
+
+  console.log('🚀 Generating agent variants...\n')
+  console.log(`Provider(s): ${provider}`)
+  if (templates) {
+    console.log(`Templates: ${templates.join(', ')}`)
+  }
+  console.log('')
 
   // Ensure output directory exists
   if (!fs.existsSync(OUTPUT_DIR)) {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true })
   }
 
-  for (const agentConfig of AGENT_CONFIGS) {
-    console.log(`📦 Generating ${agentConfig.templateId}...`)
+  // Filter configs if specific templates requested
+  const configs = templates
+    ? AGENT_CONFIGS.filter(c => templates.includes(c.templateId))
+    : AGENT_CONFIGS
 
-    // Build tools array
-    const tools = AVAILABLE_TOOLS.map(tool => ({
-      ...tool,
-      enabled: agentConfig.tools.includes(tool.id),
-    }))
+  // Determine which providers to generate
+  const providers: SDKProvider[] = provider === 'both'
+    ? ['claude', 'openai']
+    : [provider]
 
-    const config: AgentConfig = {
-      name: agentConfig.name,
-      description: agentConfig.description,
-      domain: agentConfig.domain as any,
-      templateId: agentConfig.templateId,
-      sdkProvider: 'claude',
-      model: 'claude-sonnet-4-5-20250929',
-      interface: 'cli',
-      tools,
-      mcpServers: [],
-      customInstructions: '',
-      specialization: agentConfig.specialization,
-      permissions: 'balanced',
-      maxTokens: 4096,
-      temperature: 0.3,
-      projectName: agentConfig.templateId,
-      packageName: agentConfig.templateId,
-      version: '1.0.0',
-      author: 'Build-An-Agent Workshop',
-      license: 'MIT',
-    }
-
-    try {
-      const project = await generateAgentProject(config)
-      const outputPath = path.join(OUTPUT_DIR, agentConfig.templateId)
-
-      // Create project directory
-      if (!fs.existsSync(outputPath)) {
-        fs.mkdirSync(outputPath, { recursive: true })
-      }
-
-      // Write all generated files
-      for (const file of project.files) {
-        const filePath = path.join(outputPath, file.path)
-        const dirPath = path.dirname(filePath)
-
-        if (!fs.existsSync(dirPath)) {
-          fs.mkdirSync(dirPath, { recursive: true })
-        }
-
-        fs.writeFileSync(filePath, file.content)
-      }
-
-      // Create test prompts file
-      createTestPromptsFile(agentConfig.templateId, outputPath)
-
-      console.log(`   ✅ Generated ${project.files.length} files + TEST_PROMPTS.md`)
-    } catch (error) {
-      console.error(`   ❌ Failed: ${error instanceof Error ? error.message : String(error)}`)
+  for (const agentConfig of configs) {
+    for (const p of providers) {
+      await generateAgentForProvider(agentConfig, p)
     }
   }
 
@@ -381,7 +466,12 @@ async function generateAllAgents() {
   console.log('\nTo test an agent:')
   console.log('  cd GENERATED_AGENTS/<agent-name>')
   console.log('  npm install')
-  console.log('  export ANTHROPIC_API_KEY=your-key')
+  if (provider === 'both' || provider === 'claude') {
+    console.log('  export ANTHROPIC_API_KEY=your-key  # for Claude agents')
+  }
+  if (provider === 'both' || provider === 'openai') {
+    console.log('  export OPENAI_API_KEY=your-key     # for OpenAI agents')
+  }
   console.log('  npm start')
 }
 

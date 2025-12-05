@@ -1,0 +1,42 @@
+{
+  "category": "multi-turn",
+  "description": "Multi-turn conversation tests to validate session persistence and context recall",
+  "tests": [
+    {
+      "name": "remembers-user-name",
+      "turns": [
+        {
+          "prompt": "My name is TestUser. Please remember it and respond briefly.",
+          "assertions": [
+            { "type": "notEmpty" }
+          ]
+        },
+        {
+          "prompt": "What is my name?",
+          "assertions": [
+            { "type": "containsText", "value": "TestUser" }
+          ]
+        }
+      ],
+      "estimatedTokens": 600
+    },
+    {
+      "name": "continues-topic-context",
+      "turns": [
+        {
+          "prompt": "Let's discuss TypeScript. What is a generic type? Answer briefly.",
+          "assertions": [
+            { "type": "notEmpty" }
+          ]
+        },
+        {
+          "prompt": "Give me a simple example of what we just discussed.",
+          "assertions": [
+            { "type": "containsAny", "values": ["<", ">", "generic", "T", "type"] }
+          ]
+        }
+      ],
+      "estimatedTokens": 800
+    }
+  ]
+}

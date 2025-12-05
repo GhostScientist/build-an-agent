@@ -41,11 +41,11 @@ export function TemplateSelection({ config, updateConfig, onNext }: TemplateSele
       }))
 
       // Update config with template defaults
-      updateConfig({ 
+      updateConfig({
         templateId,
         name: config.name || `${template.name}`,
         description: config.description || template.description,
-        specialization: template.documentation,
+        customInstructions: template.documentation,
         tools: toolsWithDefaults,
         // Keep existing permission choice, otherwise start safer for knowledge work
         permissions: config.permissions || (template.domain === 'development' ? 'balanced' : 'restrictive')

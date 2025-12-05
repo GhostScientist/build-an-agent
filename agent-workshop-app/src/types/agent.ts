@@ -1,8 +1,6 @@
-export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge' | 'custom'
+export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge'
 
 export type SDKProvider = 'claude' | 'openai'
-
-export type AgentInterface = 'cli' | 'web' | 'api' | 'discord' | 'slack'
 
 export interface AgentTool {
   id: string
@@ -61,6 +59,10 @@ export interface MCPServerTemplate {
   defaultConfig: Partial<MCPServer>
 }
 
+// ============================================================================
+// Template Types
+// ============================================================================
+
 export interface AgentTemplate {
   id: string
   name: string
@@ -80,26 +82,21 @@ export interface AgentConfig {
   description: string
   domain: AgentDomain
   templateId?: string
-  
+
   // AI Provider
   sdkProvider: SDKProvider
   model?: string
-  apiKey?: string
-  
-  // Interface
-  interface: AgentInterface
-  
+
   // Capabilities
   tools: AgentTool[]
   mcpServers: MCPServer[]
   customInstructions: string
-  specialization: string
 
   // Advanced Settings
   permissions: 'restrictive' | 'balanced' | 'permissive'
   maxTokens?: number
   temperature?: number
-  
+
   // Output Configuration
   projectName: string
   packageName: string
@@ -262,24 +259,6 @@ export const AVAILABLE_TOOLS: AgentTool[] = [
 ]
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
-  // Featured: Modernization Agent (niche, specialized use case)
-  {
-    id: 'modernization-agent',
-    name: 'Legacy Code Modernization Agent',
-    description: 'Specialized agent for analyzing legacy codebases and planning modernization strategies.',
-    domain: 'development',
-    icon: 'CodeBracketIcon',
-    gradient: 'from-indigo-500 to-blue-600',
-    defaultTools: ['read-file', 'write-file', 'find-files', 'search-files', 'git-operations'],
-    samplePrompts: [
-      'Analyze this legacy Java codebase and identify modernization opportunities',
-      'Create a migration plan from Angular.js to React',
-      'Identify security vulnerabilities in this PHP application',
-      'Suggest refactoring strategies for this monolithic architecture'
-    ],
-    codeTemplates: {},
-    documentation: 'Expert at analyzing legacy code, identifying technical debt, and creating actionable modernization plans. Perfect for migration projects and technical assessments.',
-  },
   {
     id: 'document-processing-agent',
     name: 'Document Processing Agent',

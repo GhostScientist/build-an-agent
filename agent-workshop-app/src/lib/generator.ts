@@ -267,6 +267,31 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     })
   }
 
+  // Claude Code configuration files (levers)
+  const claudeCodeFiles = generateClaudeCodeFiles(config)
+  files.push(...claudeCodeFiles)
+
+  // Claude Config Loader (runtime loader for Claude Code files)
+  files.push({
+    path: 'src/claude-config.ts',
+    content: generateClaudeConfigLoader(),
+    type: 'typescript',
+    template: 'src/claude-config.ts'
+  })
+
+  // Type declaration for inquirer-autocomplete-prompt
+  files.push({
+    path: 'src/inquirer-autocomplete.d.ts',
+    content: `declare module 'inquirer-autocomplete-prompt' {
+  import { PromptModule } from 'inquirer';
+  const autocomplete: any;
+  export default autocomplete;
+}
+`,
+    type: 'typescript',
+    template: 'src/inquirer-autocomplete.d.ts'
+  })
+
   const metadata: ProjectMetadata = {
     generatedAt: new Date(),
     templateVersion: '1.0.0',
@@ -378,6 +403,7 @@ function getDependencies(config: AgentConfig): Record<string, string> {
     'chalk': '^5.3.0',
     'ora': '^8.0.1',
     'inquirer': '^9.2.12',
+    'inquirer-autocomplete-prompt': '^3.0.1',
     'dotenv': '^16.3.1'
   }
   
@@ -460,24 +486,36 @@ function generateTsConfig(): string {
 function generateCLI(config: AgentConfig, enabledTools: AgentConfig['tools']): string {
   const hasFileOps = enabledTools.some(t => t.category === 'file')
   const hasCommands = enabledTools.some(t => t.category === 'command')
+  const isDARE = false // DARE templates removed
 
   return `#!/usr/bin/env node
 
 import { config as loadEnv } from 'dotenv';
 import { resolve } from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
+import inquirerAutocomplete from 'inquirer-autocomplete-prompt';
 import { ${sanitizeClassName(config.name)}Agent } from './agent.js';
 import { ConfigManager } from './config.js';
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
 import { PlanManager, formatAge, type Plan, type PlanStep } from './planner.js';
 import { MCPConfigManager, type MCPServerConfig } from './mcp-config.js';
+import { loadClaudeConfig, getCommand, expandCommand, type ClaudeConfig } from './claude-config.js';${isDARE ? `
+import { DAREOrchestrator, type SubagentConfig } from './dare-orchestrator.js';` : ''}
+
+// Register autocomplete prompt
+inquirer.registerPrompt('autocomplete', inquirerAutocomplete);
 
 // Load .env from current working directory (supports global installation)
 const workingDir = process.cwd();
 loadEnv({ path: resolve(workingDir, '.env') });
+
+// Load Claude Code configuration (skills, commands, memory)
+const claudeConfig = loadClaudeConfig(workingDir);
 
 const program = new Command();
 
@@ -620,11 +658,40 @@ function parseSlashCommand(input: string): { command: string; args: Record<strin
   return { command, args };
 }
 
+/** Global to store stdin history - read at startup before commander parses */
+let stdinHistory: Array<{role: string, content: string}> = [];
+
+/** Read conversation history from stdin synchronously using fs */
+function initStdinHistory(): void {
+  // If stdin is a TTY (interactive), no history
+  if (process.stdin.isTTY) {
+    return;
+  }
+
+  try {
+    // Read stdin synchronously using fs
+    const fs = require('fs');
+    const data = fs.readFileSync(0, 'utf8');  // fd 0 is stdin
+    if (data.trim()) {
+      const history = JSON.parse(data);
+      if (Array.isArray(history)) {
+        stdinHistory = history;
+      }
+    }
+  } catch (e) {
+    // No stdin data or invalid JSON, ignore
+  }
+}
+
 async function handleSingleQuery(agent: any, query: string, verbose?: boolean) {
+  // Use the global stdin history (read before commander.parse())
+  const history = stdinHistory;
+
   const spinner = ora('Processing...').start();
 
   try {
-    const response = agent.query(query);
+    // Pass history to agent for multi-turn context
+    const response = agent.query(query, history);
     spinner.stop();
 
     console.log(chalk.yellow('Query:'), query);
@@ -679,19 +746,94 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
   const workflowExecutor = new WorkflowExecutor(agent.permissionManager);
   const planManager = new PlanManager();
 
+  // Build list of all available slash commands
+  const builtinCommands = [
+    { name: 'help', description: 'Show available commands' },
+    { name: 'quit', description: 'Exit the agent' },
+    { name: 'exit', description: 'Exit the agent' },
+    { name: 'plan', description: 'Create a plan for a task' },
+    { name: 'plans', description: 'List all pending plans' },
+    { name: 'execute', description: 'Execute plan by number' },
+    { name: 'plan-delete', description: 'Delete plans' },
+    { name: 'mcp-list', description: 'List configured MCP servers' },
+    { name: 'mcp-add', description: 'Add a new MCP server' },
+    { name: 'mcp-remove', description: 'Remove an MCP server' },
+    { name: 'mcp-toggle', description: 'Enable/disable an MCP server' },
+    { name: 'command-add', description: 'Create a new custom slash command' },
+    { name: 'command-list', description: 'List all custom commands' },
+    { name: 'skill-add', description: 'Create a new skill' },
+    { name: 'skill-list', description: 'List all available skills' },${hasFileOps ? `
+    { name: 'files', description: 'List files in current directory' },` : ''}${hasCommands ? `
+    { name: 'run', description: 'Execute a command' },` : ''}${config.domain === 'knowledge' ? `
+    { name: 'literature-review', description: 'Systematic literature review with citations' },
+    { name: 'experiment-log', description: 'Structured experiment log with traceability' },` : ''}${config.domain === 'development' ? `
+    { name: 'code-audit', description: 'Comprehensive code audit for technical debt and security' },
+    { name: 'test-suite', description: 'Generate comprehensive test suite' },
+    { name: 'refactor-analysis', description: 'Analyze code for refactoring opportunities' },` : ''}${config.domain === 'business' ? `
+    { name: 'invoice-batch', description: 'Batch process invoices into structured data' },
+    { name: 'contract-review', description: 'Analyze contract terms, obligations, and risks' },
+    { name: 'meeting-summary', description: 'Process transcripts into structured summaries' },` : ''}${config.domain === 'creative' ? `
+    { name: 'content-calendar', description: 'Generate 30-day social media content calendar' },
+    { name: 'blog-outline', description: 'Create SEO-optimized blog post outline' },
+    { name: 'campaign-brief', description: 'Generate multi-channel marketing campaign brief' },` : ''}${config.domain === 'data' ? `
+    { name: 'dataset-profile', description: 'Analyze dataset with statistical profile' },
+    { name: 'chart-report', description: 'Generate visualization report with insights' },` : ''}${isDARE ? `
+    { name: 'dare-status', description: 'Show DARE project status' },
+    { name: 'dare-discover', description: 'Start Discovery phase' },
+    { name: 'dare-assess', description: 'Start Assessment phase' },
+    { name: 'dare-roadmap', description: 'Start Roadmap phase' },
+    { name: 'dare-execute', description: 'Start Execution phase' },
+    { name: 'dare-citations', description: 'Export all citations' },
+    { name: 'dare-reset', description: 'Reset DARE project' },` : ''}
+  ];
+
+  // Add Claude Code commands from .claude/commands/
+  const allCommands = [
+    ...builtinCommands,
+    ...claudeConfig.commands.map(c => ({ name: c.name, description: c.description || 'Custom command' }))
+  ];
+
+  // Autocomplete source function
+  const commandSource = async (answers: any, input: string) => {
+    input = input || '';
+
+    // Only show autocomplete when typing slash commands
+    if (!input.startsWith('/')) {
+      return [];
+    }
+
+    const search = input.slice(1).toLowerCase();
+    const matches = allCommands.filter(cmd =>
+      cmd.name.toLowerCase().startsWith(search)
+    );
+
+    return matches.map(cmd => ({
+      name: \`/\${cmd.name} - \${cmd.description}\`,
+      value: \`/\${cmd.name}\`,
+      short: \`/\${cmd.name}\`
+    }));
+  };
+
   console.log(chalk.gray('Type your questions, or:'));
   console.log(chalk.gray('• /help - Show available commands'));
   console.log(chalk.gray('• /plan <query> - Create a plan before executing'));
-  console.log(chalk.gray('• /quit or Ctrl+C - Exit\\n'));
+  console.log(chalk.gray('• /quit or Ctrl+C - Exit'));
+  if (claudeConfig.commands.length > 0) {
+    console.log(chalk.gray(\`• \${claudeConfig.commands.length} custom commands available (type / to see them)\`));
+  }
+  console.log();
 
   while (true) {
     try {
       const { input } = await inquirer.prompt([
         {
-          type: 'input',
+          type: 'autocomplete',
           name: 'input',
           message: chalk.cyan('${config.projectName}>'),
-          prefix: ''
+          prefix: '',
+          source: commandSource,
+          suggestOnly: true,  // Allow free text input
+          emptyText: '',      // Don't show "no results" message
         }
       ]);
 
@@ -719,6 +861,11 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
         console.log(chalk.gray('• /mcp-add - Add a new MCP server (interactive)'));
         console.log(chalk.gray('• /mcp-remove [name] - Remove an MCP server'));
         console.log(chalk.gray('• /mcp-toggle [name] - Enable/disable an MCP server'));
+        console.log(chalk.gray('\\n✨ Customization Commands:'));
+        console.log(chalk.gray('• /command-add - Create a new custom slash command'));
+        console.log(chalk.gray('• /command-list - List all custom commands'));
+        console.log(chalk.gray('• /skill-add - Create a new skill'));
+        console.log(chalk.gray('• /skill-list - List all available skills'));
         console.log(chalk.gray('\\n🔮 Workflow Commands:'));${config.domain === 'knowledge' ? `
         console.log(chalk.gray('• /literature-review --sources <path> [--output <path>] [--limit <number>]'));
         console.log(chalk.gray('  Systematic literature review with citations'));
@@ -745,7 +892,33 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
         console.log(chalk.gray('• /dataset-profile --data <file> [--output <path>]'));
         console.log(chalk.gray('  Analyze dataset with statistical profile'));
         console.log(chalk.gray('• /chart-report --data <file> [--focus <analysis_type>]'));
-        console.log(chalk.gray('  Generate visualization report with insights'));` : ''}
+        console.log(chalk.gray('  Generate visualization report with insights'));` : ''}${isDARE ? `
+        console.log(chalk.gray('\\n🎯 DARE Methodology Commands:'));
+        console.log(chalk.gray('• /dare-status - Show DARE project status'));
+        console.log(chalk.gray('• /dare-discover --target <path> - Start Discovery phase'));
+        console.log(chalk.gray('• /dare-assess [--focus <area>] - Start Assessment phase'));
+        console.log(chalk.gray('• /dare-roadmap [--strategy <type>] - Start Roadmap phase'));
+        console.log(chalk.gray('• /dare-execute [--workItem <id>] - Start Execution phase'));
+        console.log(chalk.gray('• /dare-citations [--output <file>] - Export all citations'));
+        console.log(chalk.gray('• /dare-reset - Reset DARE project'));` : ''}
+
+        // Show custom Claude Code commands if any
+        if (claudeConfig.commands.length > 0) {
+          console.log(chalk.gray('\\n📌 Custom Commands:'));
+          claudeConfig.commands.forEach(cmd => {
+            console.log(chalk.gray(\`• /\${cmd.name} - \${cmd.description || 'Custom command'}\`));
+          });
+        }
+
+        // Show available skills if any
+        if (claudeConfig.skills.length > 0) {
+          console.log(chalk.gray('\\n🎯 Available Skills:'));
+          claudeConfig.skills.forEach(skill => {
+            console.log(chalk.gray(\`• \${skill.name} - \${skill.description}\`));
+          });
+          console.log(chalk.gray('  (Say "use <skill>" or "run the <skill> skill" to invoke)'));
+        }
+
         console.log(chalk.gray('\\n💡 Ask me anything about ${config.domain}!\\n'));
         continue;
       }
@@ -804,12 +977,83 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
         continue;
       }
 
-      // Handle workflow commands
+      // Handle command/skill creation
+      if (input === '/command-add') {
+        await handleCommandAdd();
+        continue;
+      }
+
+      if (input === '/command-list') {
+        handleCommandList();
+        continue;
+      }
+
+      if (input === '/skill-add') {
+        await handleSkillAdd();
+        continue;
+      }
+
+      if (input === '/skill-list') {
+        handleSkillList();
+        continue;
+      }${isDARE ? `
+
+      // Handle DARE commands
+      if (input.startsWith('/dare-')) {
+        const { command, args, error } = parseSlashCommand(input);
+        if (error) {
+          console.log(chalk.red(\`Error: \${error}\`));
+          continue;
+        }
+
+        const handled = await handleDareCommand(command, args, agent, verbose || false);
+        if (handled) continue;
+      }` : ''}
+
+      // Handle slash commands (including custom Claude Code commands)
       if (input.startsWith('/')) {
         const { command, args, error} = parseSlashCommand(input);
 
         if (error) {
           console.log(chalk.red(\`Error: \${error}\`));
+          continue;
+        }
+
+        // Check for custom Claude Code command first
+        const customCmd = getCommand(claudeConfig.commands, command);
+        if (customCmd) {
+          // Get any positional arguments after the command name
+          const inputAfterCommand = input.slice(command.length + 2).trim();
+          const positionalArgs = inputAfterCommand.split(/\\s+/).filter(Boolean);
+
+          // Expand the command template with arguments
+          const expandedPrompt = expandCommand(customCmd, inputAfterCommand);
+
+          console.log(chalk.cyan(\`\\n📋 Running /\${command}...\\n\`));
+
+          // Send the expanded prompt to the agent
+          const spinner = ora('Processing command...').start();
+          try {
+            const response = agent.query(expandedPrompt);
+            spinner.stop();
+
+            for await (const message of response) {
+              if (message.type === 'stream_event') {
+                const event = (message as any).event;
+                if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                  process.stdout.write(event.delta.text || '');
+                } else if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+                  console.log(chalk.cyan(\`\\n🔧 Using tool: \${event.content_block.name}\`));
+                }
+              } else if (message.type === 'tool_result') {
+                if (verbose) console.log(chalk.gray(\`   ↳ Tool completed\`));
+              }
+            }
+            console.log('\\n');
+          } catch (error) {
+            spinner.fail('Command failed');
+            console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+          }
           continue;
         }
 
@@ -1122,6 +1366,282 @@ async function handleMcpToggle(name?: string) {
   console.log(chalk.green(\`\\n✓ Server '\${serverName}' \${wasEnabled ? 'disabled' : 'enabled'}.\\n\`));
   console.log(chalk.yellow('Note: Restart the agent to apply changes.\\n'));
 }
+
+// Custom command creation handler
+async function handleCommandAdd() {
+  console.log(chalk.cyan.bold('\\n✨ Create New Slash Command\\n'));
+
+  const { name, description, template } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Command name (without /):',
+      validate: (input: string) => {
+        if (!input.trim()) return 'Name is required';
+        if (!/^[a-z][a-z0-9-]*$/.test(input)) {
+          return 'Name must be lowercase, start with a letter, and contain only letters, numbers, and hyphens';
+        }
+        return true;
+      }
+    },
+    {
+      type: 'input',
+      name: 'description',
+      message: 'Description:',
+      validate: (input: string) => input.trim() ? true : 'Description is required'
+    },
+    {
+      type: 'editor',
+      name: 'template',
+      message: 'Command template (use $ARGUMENTS for all args, $1, $2 for positional):',
+      default: 'Perform the following task:\\n\\n$ARGUMENTS'
+    }
+  ]);
+
+  // Create .claude/commands directory if it doesn't exist
+  const commandsDir = path.join(workingDir, '.claude', 'commands');
+  if (!fs.existsSync(commandsDir)) {
+    fs.mkdirSync(commandsDir, { recursive: true });
+  }
+
+  // Create the command file
+  const content = \`---
+description: \${description}
+---
+
+\${template}
+\`;
+
+  const filePath = path.join(commandsDir, \`\${name}.md\`);
+  fs.writeFileSync(filePath, content);
+
+  console.log(chalk.green(\`\\n✓ Created command /\${name}\`));
+  console.log(chalk.gray(\`  File: \${filePath}\`));
+  console.log(chalk.yellow('\\nRestart the agent to use the new command.\\n'));
+
+  // Reload the config to pick up the new command
+  Object.assign(claudeConfig, loadClaudeConfig(workingDir));
+}
+
+function handleCommandList() {
+  console.log(chalk.cyan.bold('\\n📋 Custom Slash Commands\\n'));
+
+  if (claudeConfig.commands.length === 0) {
+    console.log(chalk.gray('No custom commands defined.'));
+    console.log(chalk.gray('Use /command-add to create one.\\n'));
+    return;
+  }
+
+  claudeConfig.commands.forEach(cmd => {
+    console.log(chalk.white(\`  /\${cmd.name}\`));
+    console.log(chalk.gray(\`    \${cmd.description || 'No description'}\`));
+    console.log(chalk.gray(\`    File: \${cmd.filePath}\\n\`));
+  });
+}
+
+// Custom skill creation handler
+async function handleSkillAdd() {
+  console.log(chalk.cyan.bold('\\n🎯 Create New Skill\\n'));
+
+  const { name, description, tools, instructions } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Skill name:',
+      validate: (input: string) => {
+        if (!input.trim()) return 'Name is required';
+        if (!/^[a-z][a-z0-9-]*$/.test(input)) {
+          return 'Name must be lowercase, start with a letter, and contain only letters, numbers, and hyphens';
+        }
+        return true;
+      }
+    },
+    {
+      type: 'input',
+      name: 'description',
+      message: 'Description:',
+      validate: (input: string) => input.trim() ? true : 'Description is required'
+    },
+    {
+      type: 'checkbox',
+      name: 'tools',
+      message: 'Select tools this skill can use:',
+      choices: [
+        { name: 'Read files', value: 'Read' },
+        { name: 'Write files', value: 'Write' },
+        { name: 'Run commands', value: 'Bash' },
+        { name: 'Web search', value: 'WebSearch' },
+        { name: 'Web fetch', value: 'WebFetch' }
+      ],
+      default: ['Read']
+    },
+    {
+      type: 'editor',
+      name: 'instructions',
+      message: 'Skill instructions (what should the agent do when this skill is invoked?):',
+      default: '# Skill Instructions\\n\\nWhen this skill is invoked:\\n\\n1. First, understand the user\\'s request\\n2. Apply your expertise to solve the problem\\n3. Provide a clear, actionable response'
+    }
+  ]);
+
+  // Create .claude/skills/<name> directory
+  const skillDir = path.join(workingDir, '.claude', 'skills', name);
+  if (!fs.existsSync(skillDir)) {
+    fs.mkdirSync(skillDir, { recursive: true });
+  }
+
+  // Create the SKILL.md file
+  const content = \`---
+description: \${description}
+tools: \${tools.join(', ')}
+---
+
+\${instructions}
+\`;
+
+  const filePath = path.join(skillDir, 'SKILL.md');
+  fs.writeFileSync(filePath, content);
+
+  console.log(chalk.green(\`\\n✓ Created skill: \${name}\`));
+  console.log(chalk.gray(\`  File: \${filePath}\`));
+  console.log(chalk.yellow('\\nRestart the agent to use the new skill.'));
+  console.log(chalk.gray('Invoke it by saying "use ' + name + '" or "run the ' + name + ' skill"\\n'));
+
+  // Reload the config to pick up the new skill
+  Object.assign(claudeConfig, loadClaudeConfig(workingDir));
+}
+
+function handleSkillList() {
+  console.log(chalk.cyan.bold('\\n🎯 Available Skills\\n'));
+
+  if (claudeConfig.skills.length === 0) {
+    console.log(chalk.gray('No skills defined.'));
+    console.log(chalk.gray('Use /skill-add to create one.\\n'));
+    return;
+  }
+
+  claudeConfig.skills.forEach(skill => {
+    console.log(chalk.white(\`  \${skill.name}\`));
+    console.log(chalk.gray(\`    \${skill.description}\`));
+    console.log(chalk.gray(\`    Tools: \${skill.tools.join(', ') || 'none'}\`));
+    console.log(chalk.gray(\`    File: \${skill.filePath}\\n\`));
+  });
+}
+${isDARE ? `
+
+// DARE command handler
+type DAREPhase = 'discover' | 'assess' | 'roadmap' | 'execute';
+let dareOrchestrator: DAREOrchestrator | null = null;
+
+function getOrchestrator(projectId: string = 'default', verbose: boolean = false): DAREOrchestrator {
+  if (!dareOrchestrator || dareOrchestrator.getStore().getProject().projectId !== projectId) {
+    dareOrchestrator = new DAREOrchestrator(projectId, verbose);
+  }
+  return dareOrchestrator;
+}
+
+async function handleDareCommand(
+  command: string,
+  args: Record<string, any>,
+  agent: any,
+  verbose: boolean
+): Promise<boolean> {
+  const projectId = args.project || 'default';
+  const orchestrator = getOrchestrator(projectId, verbose);
+
+  switch (command) {
+    case 'dare-status': {
+      const status = orchestrator.getStatus();
+      console.log(chalk.cyan.bold('\\n📊 DARE Project Status\\n'));
+      console.log(chalk.white('Current Phase:'), chalk.yellow(status.currentPhase.toUpperCase()));
+      console.log(chalk.white('Completed:'), status.completedPhases.map((p: string) => chalk.green(p)).join(', ') || 'none');
+      console.log(chalk.white('Pending:'), status.pendingPhases.map((p: string) => chalk.gray(p)).join(', ') || 'none');
+      console.log(chalk.gray('\\n' + status.summary));
+      return true;
+    }
+
+    case 'dare-discover':
+    case 'dare-assess':
+    case 'dare-roadmap':
+    case 'dare-execute': {
+      const phase = command.replace('dare-', '') as DAREPhase;
+      const result = await orchestrator.startPhase(phase);
+
+      if (!result.canStart) {
+        console.log(chalk.red(\`\\n❌ \${result.reason}\`));
+        return true;
+      }
+
+      // Set target if provided (for discover phase)
+      if (args.target) {
+        orchestrator.getStore().setTarget(args.target);
+      }
+
+      console.log(chalk.cyan(\`\\n🔍 Starting \${phase.toUpperCase()} phase...\\n\`));
+
+      // Build enhanced prompt with focus/strategy if provided
+      let prompt = result.prompt;
+      if (args.focus) {
+        prompt += \`\\n\\nFocus area: \${args.focus}\`;
+      }
+      if (args.strategy) {
+        prompt += \`\\n\\nPreferred strategy: \${args.strategy}\`;
+      }
+      if (args.workItem) {
+        prompt += \`\\n\\nExecute work item: \${args.workItem}\`;
+      }
+
+      // Run agent with phase prompt
+      const spinner = ora('Processing...').start();
+      try {
+        const response = agent.query(prompt);
+        spinner.stop();
+
+        for await (const message of response) {
+          if (message.type === 'stream_event') {
+            const event = (message as any).event;
+            if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              process.stdout.write(event.delta.text || '');
+            }
+          }
+        }
+
+        // Mark phase complete (unless execute which is ongoing)
+        if (phase !== 'execute') {
+          const nextPhase = orchestrator.completePhase(phase);
+          if (nextPhase) {
+            console.log(chalk.green(\`\\n\\n✅ \${phase.toUpperCase()} complete. Next: \${nextPhase.toUpperCase()}\`));
+          } else {
+            console.log(chalk.green(\`\\n\\n✅ \${phase.toUpperCase()} complete.\`));
+          }
+        }
+      } catch (error) {
+        spinner.fail('Phase execution failed');
+        throw error;
+      }
+
+      return true;
+    }
+
+    case 'dare-citations': {
+      const citations = orchestrator.exportCitations();
+      const outputPath = args.output || 'CITATIONS.md';
+
+      const fs = await import('fs');
+      fs.writeFileSync(outputPath, citations);
+      console.log(chalk.green(\`\\n✅ Citations exported to \${outputPath}\`));
+      return true;
+    }
+
+    case 'dare-reset': {
+      orchestrator.reset();
+      console.log(chalk.yellow('\\n🔄 DARE project reset'));
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}` : ''}
 
 // Planning mode helper functions
 async function handlePlanningMode(agent: any, query: string, pm: PermissionManager) {
@@ -1448,6 +1968,8 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
+// Read stdin history before parsing commander args (synchronous)
+initStdinHistory();
 program.parse();`
 }
 
@@ -1500,6 +2022,7 @@ function generateClaudeAgent(imports: string[], className: string, config: Agent
   return `${imports.join('\n')}
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
 import { MCPConfigManager } from './mcp-config.js';
+import { loadClaudeConfig, formatSkillsForPrompt, type ClaudeConfig } from './claude-config.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
@@ -1507,6 +2030,7 @@ export interface ${className}AgentConfig {
   permissionManager?: PermissionManager;
   permissions?: PermissionPolicy;
   auditPath?: string;
+  workingDir?: string;
 }
 
 export class ${className}Agent {
@@ -1517,6 +2041,7 @@ export class ${className}Agent {
   private knowledgeTools: KnowledgeTools;` : ''}
   private customServer: ReturnType<typeof createSdkMcpServer>;
   private mcpConfigManager: MCPConfigManager;
+  private claudeConfig: ClaudeConfig;
   private sessionId?: string;
 
   constructor(config: ${className}AgentConfig = {}) {
@@ -1540,6 +2065,16 @@ export class ${className}Agent {
 
     // Initialize MCP config manager
     this.mcpConfigManager = new MCPConfigManager();
+
+    // Load Claude Code configuration (CLAUDE.md, skills, commands)
+    this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
+  }
+
+  /**
+   * Get loaded Claude Code configuration
+   */
+  getClaudeConfig(): ClaudeConfig {
+    return this.claudeConfig;
   }
 
   private async loadExternalMcpServers(): Promise<Record<string, any>> {
@@ -1585,7 +2120,7 @@ export class ${className}Agent {
     return servers;
   }
 
-  async *query(userQuery: string) {
+  async *query(userQuery: string, history: Array<{role: string, content: string}> = []) {
     const systemPrompt = this.buildSystemPrompt();
 
     // Load external MCP servers from .mcp.json
@@ -1614,8 +2149,17 @@ export class ${className}Agent {
       options.resume = this.sessionId;
     }
 
+    // If history provided and no active session, prepend conversation context to prompt
+    let effectivePrompt = userQuery;
+    if (history.length > 0 && !this.sessionId) {
+      const contextLines = history.map(h =>
+        \`\${h.role === 'user' ? 'User' : 'Assistant'}: \${h.content}\`
+      ).join('\\n\\n');
+      effectivePrompt = \`Previous conversation:\\n\${contextLines}\\n\\nUser: \${userQuery}\`;
+    }
+
     const queryResult = query({
-      prompt: userQuery,
+      prompt: effectivePrompt,
       options
     });
 
@@ -1795,14 +2339,34 @@ export class ${className}Agent {
   }
 
   private buildSystemPrompt(): string {
+    // Build memory section from CLAUDE.md if available
+    const memorySection = this.claudeConfig.memory
+      ? \`## Project Context (from CLAUDE.md):\n\${this.claudeConfig.memory}\n\n\`
+      : '';
+
+    // Build skills section if any skills are loaded
+    const skillsSection = this.claudeConfig.skills.length > 0
+      ? \`## Available Skills:\n\${formatSkillsForPrompt(this.claudeConfig.skills)}\n\nWhen the user asks you to use a skill (e.g., "run the api-design skill" or "use code-review"), apply the skill's instructions to the current context. Skills provide specialized expertise and workflows.\n\n\`
+      : '';
+
+    // Build subagents section if any are loaded
+    const subagentsSection = this.claudeConfig.subagents.length > 0
+      ? '## Available Subagents:\\n' + this.claudeConfig.subagents.map(a => '- **' + a.name + '**: ' + a.description).join('\\n') + '\\n\\nYou can delegate specialized tasks to these subagents when appropriate.\\n\\n'
+      : '';
+
+    // Build commands info if any are loaded
+    const commandsSection = this.claudeConfig.commands.length > 0
+      ? '## Slash Commands:\\nThe user can invoke these commands with /command-name:\\n' + this.claudeConfig.commands.map(c => '- **/' + c.name + '**: ' + (c.description || 'No description')).join('\\n') + '\\n\\n'
+      : '';
+
     return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
 
-${config.specialization || template?.documentation || ''}
+\${memorySection}${config.customInstructions || template?.documentation || ''}
 
 ## Your Capabilities:
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
 
-## Instructions:
+\${skillsSection}\${subagentsSection}\${commandsSection}## Instructions:
 ${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
@@ -1842,7 +2406,7 @@ Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
 function generateOpenAIAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   return `${imports.join('\n')}
 import { z } from 'zod';
-import { PermissionManager } from './permissions.js';
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
 
 export interface ${className}AgentConfig {
   verbose?: boolean;
@@ -1887,63 +2451,35 @@ export class ${className}Agent {
     });
   }
 
-  async *query(userQuery: string) {
+  async *query(userQuery: string, history: Array<{role: string, content: string}> = []) {
     try {
-      // Show thinking progress while waiting for OpenAI response
-      let thinkingDots = 1;
-      let isComplete = false;
-      
-      // Start the API call
-      const resultPromise = run(this.agent, userQuery);
-      
-      // Show thinking animation every 500ms until response arrives
-      const thinkingInterval = setInterval(() => {
-        if (!isComplete) {
-          const dots = '.'.repeat(thinkingDots);
-          // Note: This won't show in generator but CLI can handle thinking events
-          thinkingDots = (thinkingDots % 4) + 1; // Cycle 1->2->3->4->1
-        }
-      }, 500);
+      // Build input: if history provided, pass as array; otherwise just the string
+      const input = history.length > 0
+        ? [...history, { role: 'user', content: userQuery }]
+        : userQuery;
 
-      // Periodically yield thinking updates
-      const startTime = Date.now();
-      while (!isComplete) {
-        const elapsed = Date.now() - startTime;
-        
-        // Check if the API call is done
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 500));
-        const raceResult = await Promise.race([
-          resultPromise.then(result => ({ type: 'completed', result })),
-          timeoutPromise.then(() => ({ type: 'thinking' }))
-        ]);
-        
-        if (raceResult.type === 'completed') {
-          isComplete = true;
-          clearInterval(thinkingInterval);
-          
-          // Return the final result
-          yield {
-            type: 'result',
-            subtype: 'success',
-            result: (raceResult as any).result.finalOutput || 'No response generated.'
-          };
-          break;
-        } else {
-          // Show thinking progress
-          const dots = '.'.repeat(thinkingDots);
-          yield {
-            type: 'stream_event',
-            event: {
-              type: 'content_block_delta', 
-              delta: {
-                type: 'text_delta',
-                text: elapsed < 1000 ? \`thinking\${dots}\` : \`\\rthinking\${dots}\`
-              }
-            }
-          };
-          thinkingDots = (thinkingDots % 4) + 1;
+      // Run the OpenAI agent with the input (string or messages array)
+      const result = await run(this.agent, input as any);
+      const output = result.finalOutput || 'No response generated.';
+
+      // Yield the response as a stream event so CLI displays it
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          delta: {
+            type: 'text_delta',
+            text: output
+          }
         }
-      }
+      };
+
+      // Also yield as result for programmatic access
+      yield {
+        type: 'result',
+        subtype: 'success',
+        result: output
+      };
     } catch (error) {
       console.error('OpenAI Agents API error:', error);
       throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
@@ -2045,9 +2581,9 @@ export class ${className}Agent {
           description: 'Extract text from documents (pdf, docx, txt)',
           parameters: z.object({
             filePath: z.string(),
-            captureSources: z.boolean().optional()
+            captureSources: z.boolean().default(true)
           }),
-          execute: async ({ filePath, captureSources = true }: { filePath: string; captureSources?: boolean }) => {
+          execute: async ({ filePath, captureSources }: { filePath: string; captureSources: boolean }) => {
             const result = await this.knowledgeTools.extractText(filePath, captureSources);
             return result.text;
           }
@@ -2098,9 +2634,9 @@ export class ${className}Agent {
           description: 'Search local notes/corpus for grounded snippets',
           parameters: z.object({
             query: z.string(),
-            limit: z.number().optional()
+            limit: z.number().default(5)
           }),
-          execute: async ({ query, limit = 5 }: { query: string; limit?: number }) => {
+          execute: async ({ query, limit }: { query: string; limit: number }) => {
             return await this.knowledgeTools.searchLocal(query, limit);
           }
         })
@@ -2113,7 +2649,7 @@ export class ${className}Agent {
   private buildInstructions(): string {
     return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
 
-${config.specialization || template?.documentation || ''}
+${config.customInstructions || template?.documentation || ''}
 
 ## Your Capabilities:
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
@@ -5028,4 +5564,245 @@ function generateMcpJson(config: AgentConfig): string {
   }
 
   return JSON.stringify({ mcpServers }, null, 2);
+}
+
+// =============================================================================
+// Claude Code Files Generation
+// =============================================================================
+
+function generateClaudeCodeFiles(_config: AgentConfig): GeneratedFile[] {
+  // Levers (CLAUDE.md, slash commands, hooks, etc.) are configured in the target
+  // project where the agent runs, not bundled with the generated agent itself.
+  return []
+}
+
+// =============================================================================
+// Claude Config Loader (Runtime loader for Claude Code files)
+// =============================================================================
+
+function generateClaudeConfigLoader(): string {
+  return `/**
+ * Claude Config Loader
+ *
+ * Loads Claude Code configuration files at runtime:
+ * - CLAUDE.md (project memory/context)
+ * - .claude/skills/*.md (model-invoked skills)
+ * - .claude/commands/*.md (slash commands)
+ * - .claude/agents/*.md (subagents)
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface SkillDefinition {
+  name: string;
+  description: string;
+  tools: string[];
+  instructions: string;
+  filePath: string;
+}
+
+export interface CommandDefinition {
+  name: string;
+  description?: string;
+  template: string;
+  filePath: string;
+}
+
+export interface SubagentDefinition {
+  name: string;
+  description: string;
+  tools: string[];
+  model: string;
+  permissionMode?: string;
+  systemPrompt: string;
+  filePath: string;
+}
+
+export interface ClaudeConfig {
+  memory: string | null;
+  skills: SkillDefinition[];
+  commands: CommandDefinition[];
+  subagents: SubagentDefinition[];
+}
+
+/**
+ * Parse YAML-like frontmatter from a markdown file
+ */
+function parseFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
+  const frontmatterMatch = content.match(/^---\\n([\\s\\S]*?)\\n---\\n([\\s\\S]*)$/);
+
+  if (!frontmatterMatch) {
+    return { frontmatter: {}, body: content };
+  }
+
+  const frontmatterRaw = frontmatterMatch[1];
+  const body = frontmatterMatch[2].trim();
+  const frontmatter: Record<string, string> = {};
+
+  for (const line of frontmatterRaw.split('\\n')) {
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      const key = line.slice(0, colonIndex).trim();
+      const value = line.slice(colonIndex + 1).trim();
+      frontmatter[key] = value;
+    }
+  }
+
+  return { frontmatter, body };
+}
+
+/**
+ * Load all Claude Code configuration from the working directory
+ */
+export function loadClaudeConfig(workingDir: string = process.cwd()): ClaudeConfig {
+  const config: ClaudeConfig = {
+    memory: null,
+    skills: [],
+    commands: [],
+    subagents: []
+  };
+
+  // 1. Load CLAUDE.md (memory)
+  const claudeMdPath = path.join(workingDir, 'CLAUDE.md');
+  if (fs.existsSync(claudeMdPath)) {
+    try {
+      config.memory = fs.readFileSync(claudeMdPath, 'utf-8');
+    } catch (e) {
+      console.warn('Warning: Could not read CLAUDE.md:', e);
+    }
+  }
+
+  // 2. Load skills from .claude/skills/*/SKILL.md
+  const skillsDir = path.join(workingDir, '.claude', 'skills');
+  if (fs.existsSync(skillsDir)) {
+    try {
+      const skillFolders = fs.readdirSync(skillsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name);
+
+      for (const folder of skillFolders) {
+        const skillFile = path.join(skillsDir, folder, 'SKILL.md');
+        if (fs.existsSync(skillFile)) {
+          const content = fs.readFileSync(skillFile, 'utf-8');
+          const { frontmatter, body } = parseFrontmatter(content);
+
+          config.skills.push({
+            name: frontmatter.name || folder,
+            description: frontmatter.description || '',
+            tools: frontmatter.tools ? frontmatter.tools.split(',').map(t => t.trim()) : [],
+            instructions: body,
+            filePath: skillFile
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Warning: Could not load skills:', e);
+    }
+  }
+
+  // 3. Load commands from .claude/commands/*.md
+  const commandsDir = path.join(workingDir, '.claude', 'commands');
+  if (fs.existsSync(commandsDir)) {
+    try {
+      const commandFiles = fs.readdirSync(commandsDir)
+        .filter(f => f.endsWith('.md'));
+
+      for (const file of commandFiles) {
+        const filePath = path.join(commandsDir, file);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const name = file.replace('.md', '');
+
+        config.commands.push({
+          name,
+          template: content,
+          filePath
+        });
+      }
+    } catch (e) {
+      console.warn('Warning: Could not load commands:', e);
+    }
+  }
+
+  // 4. Load subagents from .claude/agents/*.md
+  const agentsDir = path.join(workingDir, '.claude', 'agents');
+  if (fs.existsSync(agentsDir)) {
+    try {
+      const agentFiles = fs.readdirSync(agentsDir)
+        .filter(f => f.endsWith('.md'));
+
+      for (const file of agentFiles) {
+        const filePath = path.join(agentsDir, file);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { frontmatter, body } = parseFrontmatter(content);
+        const name = frontmatter.name || file.replace('.md', '');
+
+        config.subagents.push({
+          name,
+          description: frontmatter.description || '',
+          tools: frontmatter.tools ? frontmatter.tools.split(',').map(t => t.trim()) : [],
+          model: frontmatter.model || 'sonnet',
+          permissionMode: frontmatter.permissionMode,
+          systemPrompt: body,
+          filePath
+        });
+      }
+    } catch (e) {
+      console.warn('Warning: Could not load subagents:', e);
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Format skills as a system prompt section
+ */
+export function formatSkillsForPrompt(skills: SkillDefinition[]): string {
+  if (skills.length === 0) return '';
+
+  let prompt = '\\n\\n## Available Skills\\n\\n';
+  prompt += 'You have access to the following specialized skills. When the user\\'s request matches a skill\\'s purpose, you should apply that skill\\'s instructions.\\n\\n';
+
+  for (const skill of skills) {
+    prompt += \`### Skill: \${skill.name}\\n\`;
+    prompt += \`**When to use:** \${skill.description}\\n\\n\`;
+    prompt += \`**Instructions:**\\n\${skill.instructions}\\n\\n\`;
+  }
+
+  return prompt;
+}
+
+/**
+ * Format commands for display/autocomplete
+ */
+export function formatCommandsForDisplay(commands: CommandDefinition[]): string[] {
+  return commands.map(cmd => \`/\${cmd.name}\`);
+}
+
+/**
+ * Get a specific command by name
+ */
+export function getCommand(commands: CommandDefinition[], name: string): CommandDefinition | undefined {
+  return commands.find(cmd => cmd.name === name || cmd.name === name.replace(/^\\//, ''));
+}
+
+/**
+ * Expand a command template with arguments
+ */
+export function expandCommand(command: CommandDefinition, args: string): string {
+  let expanded = command.template;
+
+  // Replace $ARGUMENTS with the full args string
+  expanded = expanded.replace(/\\$ARGUMENTS/g, args);
+
+  // Replace $1, $2, etc. with positional args
+  const argParts = args.split(/\\s+/).filter(Boolean);
+  for (let i = 0; i < argParts.length; i++) {
+    expanded = expanded.replace(new RegExp(\`\\\\$\${i + 1}\`, 'g'), argParts[i]);
+  }
+
+  return expanded;
+}
+`;
 }

@@ -14,11 +14,9 @@ async function main() {
     templateId: 'research-ops-agent',
     sdkProvider: 'claude',
     model: 'claude-sonnet-4.5',
-    interface: 'cli',
     tools,
     mcpServers: [],
     customInstructions: '',
-    specialization: 'Smoke test specialization',
     permissions: 'restrictive',
     maxTokens: 2048,
     temperature: 0.3,
@@ -32,19 +30,22 @@ async function main() {
   const project = await generateAgentProject(config)
   const filePaths = project.files.map(f => f.path)
 
-  if (!filePaths.includes('src/tools/knowledge-tools.ts')) {
-    throw new Error('Missing knowledge tools in generated project')
+  // Check for core files that should always be generated
+  const requiredFiles = [
+    'package.json',
+    'src/cli.ts',
+    'src/agent.ts',
+    'tsconfig.json',
+    '.commands/literature-review.json',  // knowledge domain workflow
+  ]
+
+  for (const file of requiredFiles) {
+    if (!filePaths.includes(file)) {
+      throw new Error(`Missing required file: ${file}`)
+    }
   }
 
-  if (!filePaths.includes('workflows/literature_review.md')) {
-    throw new Error('Missing knowledge workflow in generated project')
-  }
-
-  if (!filePaths.includes('scripts/eval.ts')) {
-    throw new Error('Missing eval script in generated project')
-  }
-
-  console.log(`✅ Generated ${project.files.length} files; knowledge assets present.`)
+  console.log(`✅ Generated ${project.files.length} files; all required files present.`)
 }
 
 main().catch(err => {

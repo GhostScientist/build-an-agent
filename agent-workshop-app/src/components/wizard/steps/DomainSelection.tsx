@@ -1,12 +1,11 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { 
+import {
   CodeBracketIcon,
-  CogIcon, 
+  CogIcon,
   RocketLaunchIcon,
-  ChartBarIcon,
-  PuzzlePieceIcon
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
 import { AgentConfig, AgentDomain } from '@/types/agent'
 
@@ -75,7 +74,7 @@ const domains = [
   },
   {
     id: 'data' as AgentDomain,
-    name: 'Data & Analytics', 
+    name: 'Data & Analytics',
     description: 'Data analysis, visualization, machine learning, and scientific computing.',
     icon: ChartBarIcon,
     gradient: 'from-orange-500 to-red-600',
@@ -86,20 +85,6 @@ const domains = [
       'Statistical analysis and reporting'
     ],
     tools: ['Data Processing', 'SQL Queries', 'Visualization', 'ML Tools', 'Statistical Analysis']
-  },
-  {
-    id: 'custom' as AgentDomain,
-    name: 'Custom Domain',
-    description: 'Build a specialized agent for your specific use case with custom tools and workflows.',
-    icon: PuzzlePieceIcon,
-    gradient: 'from-gray-500 to-slate-600',
-    examples: [
-      'Industry-specific assistant',
-      'Custom workflow automation',
-      'Specialized knowledge base',
-      'Unique integration requirements'
-    ],
-    tools: ['Flexible Configuration', 'Custom Tools', 'API Integration', 'Specialized Prompts', 'Domain Knowledge']
   }
 ]
 
