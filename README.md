@@ -3,14 +3,14 @@
 Build custom AI agents with the Claude Agent SDK or OpenAI Agents SDK. Choose your approach:
 
 - **[Web UI](./agent-workshop-app)** - Visual builder with live code preview
-- **[CLI](./create-agent-app)** - Interactive terminal wizard (`npx create-agent-app`)
+- **[CLI](./create-agent-app)** - Interactive terminal wizard (`npx build-agent-app`)
 
 ## Quick Start
 
 ### CLI (Recommended)
 
 ```bash
-npx create-agent-app my-agent
+npx build-agent-app my-agent
 cd my-agent
 cp .env.example .env  # Add your API key
 npm run build

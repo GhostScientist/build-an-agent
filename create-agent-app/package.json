@@ -1,5 +1,5 @@
 {
-  "name": "create-agent-app",
+  "name": "build-agent-app",
   "version": "1.0.0",
   "description": "Create AI agents with the Claude Agent SDK or OpenAI Agents SDK",
   "author": "Dakota Kim",
@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "create-agent-app": "./bin/create-agent-app.js"
+    "build-agent-app": "./bin/create-agent-app.js"
   },
   "files": [
     "dist",

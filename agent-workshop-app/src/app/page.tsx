@@ -263,7 +263,7 @@ export default function HomePage() {
                   className="btn-ghost px-8 py-3 text-base"
                 >
                   <span className="mr-2">⌨️</span>
-                  CLI: npx create-agent-app
+                  CLI: npx build-agent-app
                 </a>
               </div>
             </motion.div>

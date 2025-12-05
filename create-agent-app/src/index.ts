@@ -18,7 +18,7 @@ const VERSION = '1.0.0';
 async function main() {
 
   program
-    .name('create-agent-app')
+    .name('build-agent-app')
     .description('Create AI agents with the Claude Agent SDK or OpenAI Agents SDK')
     .version(VERSION, '-v, --version')
     .argument('[project-name]', 'Name of the project')
