@@ -1,0 +1,33 @@
+{
+  "category": "simple-chat",
+  "description": "Basic single-turn chat tests to validate agent initialization and response",
+  "tests": [
+    {
+      "name": "agent-responds-to-greeting",
+      "prompt": "Hello! Please respond briefly in one sentence.",
+      "assertions": [
+        { "type": "minLength", "value": 10 },
+        { "type": "notEmpty" }
+      ],
+      "estimatedTokens": 200
+    },
+    {
+      "name": "agent-identifies-itself",
+      "prompt": "What is your name? Answer in one sentence only.",
+      "assertions": [
+        { "type": "minLength", "value": 5 },
+        { "type": "notEmpty" }
+      ],
+      "estimatedTokens": 250
+    },
+    {
+      "name": "agent-describes-capabilities",
+      "prompt": "What can you help me with? List 3 things briefly.",
+      "assertions": [
+        { "type": "minLength", "value": 50 },
+        { "type": "notEmpty" }
+      ],
+      "estimatedTokens": 400
+    }
+  ]
+}
