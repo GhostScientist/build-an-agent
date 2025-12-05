@@ -1,14 +1,14 @@
 # Dependencies
 node_modules/
-*/node_modules/
 
 # Build outputs
-agent-workshop-app/out/
-agent-workshop-app/.next/
 dist/
 build/
+.next/
+out/
 
-GENERATED_AGENTS/
+# CLI package
+create-agent-app/dist/
 
 # Environment variables
 .env
