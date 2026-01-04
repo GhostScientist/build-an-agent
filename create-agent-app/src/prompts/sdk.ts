@@ -26,6 +26,11 @@ export async function promptSDK(): Promise<SDKAnswers> {
         message: 'OpenAI',
         value: 'openai',
       },
+      {
+        name: 'huggingface',
+        message: 'HuggingFace (Tiny Agents)',
+        value: 'huggingface',
+      },
     ],
     initial: 0,
   });
