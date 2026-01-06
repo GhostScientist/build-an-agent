@@ -2840,12 +2840,19 @@ export class ${className}Agent {
   }
 
   /**
-   * Get loaded Claude Code configuration
+   * Get loaded agent configuration.
    */
-  getClaudeConfig(): ClaudeConfig {
+  getAgentConfig(): ClaudeConfig {
     return this.claudeConfig;
   }
 
+  /**
+   * @deprecated Use getAgentConfig() instead.
+   * Get loaded agent configuration.
+   */
+  getClaudeConfig(): ClaudeConfig {
+    return this.getAgentConfig();
+  }
   private async initializeAgent(): Promise<void> {
     if (this.agent) return;
 
