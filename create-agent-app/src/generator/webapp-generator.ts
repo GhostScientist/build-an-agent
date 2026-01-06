@@ -5918,6 +5918,13 @@ function generateTinyAgentJson(config: AgentConfig): string {
           url: (server as any).url || ''
         });
         break;
+      case 'sdk':
+        // Tiny-agents format does not currently support SDK-based MCP transports.
+        // We intentionally skip these but emit a warning so they are not silently ignored.
+        if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+          console.warn('Warning: MCP server with "sdk" transportType is not supported by tiny-agents and will be skipped.');
+        }
+        break;
     }
   }
 
