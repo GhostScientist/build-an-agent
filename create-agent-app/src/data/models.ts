@@ -38,14 +38,14 @@ export const OPENAI_MODELS: ModelChoice[] = [
 
 export const HUGGINGFACE_MODELS: ModelChoice[] = [
   {
-    value: 'Qwen/Qwen2.5-72B-Instruct',
-    name: 'Qwen 2.5 72B',
+    value: 'Qwen/Qwen3-235B-A22B-Instruct-2507',
+    name: 'Qwen 3 235B Instruct',
     hint: 'recommended',
   },
   {
-    value: 'Qwen/Qwen3-235B-A22B',
-    name: 'Qwen 3 235B',
-    hint: 'most capable',
+    value: 'Qwen/Qwen3-32B',
+    name: 'Qwen 3 32B',
+    hint: 'fast',
   },
   {
     value: 'meta-llama/Llama-3.3-70B-Instruct',
@@ -53,14 +53,14 @@ export const HUGGINGFACE_MODELS: ModelChoice[] = [
     hint: 'open source',
   },
   {
-    value: 'mistralai/Mistral-Small-24B-Instruct-2501',
-    name: 'Mistral Small 24B',
-    hint: 'efficient',
-  },
-  {
     value: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek R1',
     hint: 'reasoning',
+  },
+  {
+    value: 'deepseek-ai/DeepSeek-V3-0324',
+    name: 'DeepSeek V3',
+    hint: 'general purpose',
   },
 ];
 

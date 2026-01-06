@@ -38,10 +38,12 @@ export function PreviewAndGenerate({ config, updateConfig, onNext }: PreviewAndG
       setIsGenerating(true)
       toast.loading('Generating your agent project...', { id: 'generate' })
 
-      // Validate configuration
-      const requiredFields = ['name', 'projectName', 'author', 'domain', 'sdkProvider']
+      // Validate configuration - HuggingFace has fewer requirements
+      const requiredFields = config.sdkProvider === 'huggingface'
+        ? ['name', 'projectName', 'sdkProvider', 'model']
+        : ['name', 'projectName', 'author', 'domain', 'sdkProvider']
       const missingFields = requiredFields.filter(field => !config[field as keyof AgentConfig])
-      
+
       if (missingFields.length > 0) {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`)
       }
@@ -97,11 +99,13 @@ export function PreviewAndGenerate({ config, updateConfig, onNext }: PreviewAndG
     if (!showPreview && generatedFiles.length === 0) {
       try {
         toast.loading('Generating preview...', { id: 'preview' })
-        
-        // Validate configuration
-        const requiredFields = ['name', 'projectName', 'author', 'domain', 'sdkProvider']
+
+        // Validate configuration - HuggingFace has fewer requirements
+        const requiredFields = config.sdkProvider === 'huggingface'
+          ? ['name', 'projectName', 'sdkProvider', 'model']
+          : ['name', 'projectName', 'author', 'domain', 'sdkProvider']
         const missingFields = requiredFields.filter(field => !config[field as keyof AgentConfig])
-        
+
         if (missingFields.length > 0) {
           throw new Error(`Missing required fields: ${missingFields.join(', ')}`)
         }

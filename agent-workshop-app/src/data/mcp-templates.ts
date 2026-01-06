@@ -1,44 +1,56 @@
 import { MCPServerTemplate } from '@/types/agent'
 
 export const MCP_SERVER_TEMPLATES: MCPServerTemplate[] = [
-  // Filesystem
+  // Browser Automation - VERIFIED WORKING
   {
-    id: 'filesystem',
-    name: 'Filesystem',
-    description: 'Read, write, and manage files in allowed directories',
-    icon: 'FolderIcon',
-    category: 'filesystem',
+    id: 'playwright',
+    name: 'Playwright',
+    description: 'Browser automation for web interaction and scraping',
+    icon: 'GlobeAltIcon',
+    category: 'api',
     defaultConfig: {
       transportType: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/allowed/dir'],
+      args: ['@playwright/mcp@latest'],
     }
   },
 
-  // Git / Version Control
+  // Git / Version Control - VERIFIED WORKING (requires Docker)
   {
     id: 'github',
     name: 'GitHub',
-    description: 'GitHub repository operations, issues, and pull requests',
+    description: 'GitHub repository operations, issues, and pull requests (requires Docker)',
     icon: 'CodeBracketIcon',
     category: 'git',
+    requiresInput: true,
+    inputId: 'github-token',
+    inputDescription: 'GitHub Personal Access Token',
     defaultConfig: {
       transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-github'],
-      env: { GITHUB_TOKEN: '${GITHUB_TOKEN}' }
+      command: 'docker',
+      args: [
+        'run', '-i', '--rm',
+        '-e', 'GITHUB_PERSONAL_ACCESS_TOKEN',
+        '-e', 'GITHUB_TOOLSETS=repos,pull_requests,issues',
+        'ghcr.io/github/github-mcp-server'
+      ],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: '${input:github-token}' }
     }
   },
+
+  // Filesystem - Note: Requires user to configure allowed directory
   {
-    id: 'git',
-    name: 'Git',
-    description: 'Local Git repository operations',
-    icon: 'CodeBracketIcon',
-    category: 'git',
+    id: 'filesystem',
+    name: 'Filesystem',
+    description: 'Read, write, and manage files (configure allowed directory after download)',
+    icon: 'FolderIcon',
+    category: 'filesystem',
+    requiresConfiguration: true,
+    configurationNote: 'Edit agent.json to set your allowed directory path',
     defaultConfig: {
       transportType: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-git'],
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
     }
   },
 
@@ -49,11 +61,13 @@ export const MCP_SERVER_TEMPLATES: MCPServerTemplate[] = [
     description: 'Query and manage PostgreSQL databases',
     icon: 'CircleStackIcon',
     category: 'database',
+    requiresInput: true,
+    inputId: 'database-url',
+    inputDescription: 'PostgreSQL connection URL',
     defaultConfig: {
       transportType: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-postgres'],
-      env: { DATABASE_URL: '${DATABASE_URL}' }
+      args: ['-y', '@modelcontextprotocol/server-postgres', '${input:database-url}'],
     }
   },
   {
@@ -76,82 +90,18 @@ export const MCP_SERVER_TEMPLATES: MCPServerTemplate[] = [
     description: 'Web search via Brave Search API',
     icon: 'MagnifyingGlassIcon',
     category: 'api',
+    requiresInput: true,
+    inputId: 'brave-api-key',
+    inputDescription: 'Brave Search API Key',
     defaultConfig: {
       transportType: 'stdio',
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-brave-search'],
-      env: { BRAVE_API_KEY: '${BRAVE_API_KEY}' }
-    }
-  },
-  {
-    id: 'fetch',
-    name: 'Fetch',
-    description: 'Fetch and process web content',
-    icon: 'GlobeAltIcon',
-    category: 'api',
-    defaultConfig: {
-      transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-fetch'],
-    }
-  },
-  {
-    id: 'puppeteer',
-    name: 'Puppeteer',
-    description: 'Browser automation and web scraping',
-    icon: 'GlobeAltIcon',
-    category: 'api',
-    defaultConfig: {
-      transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-puppeteer'],
+      env: { BRAVE_API_KEY: '${input:brave-api-key}' }
     }
   },
 
-  // Cloud Services
-  {
-    id: 'google-drive',
-    name: 'Google Drive',
-    description: 'Access and manage Google Drive files',
-    icon: 'CloudIcon',
-    category: 'cloud',
-    defaultConfig: {
-      transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-gdrive'],
-    }
-  },
-  {
-    id: 'aws',
-    name: 'AWS',
-    description: 'Interact with AWS services',
-    icon: 'CloudIcon',
-    category: 'cloud',
-    defaultConfig: {
-      transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-aws'],
-      env: {
-        AWS_ACCESS_KEY_ID: '${AWS_ACCESS_KEY_ID}',
-        AWS_SECRET_ACCESS_KEY: '${AWS_SECRET_ACCESS_KEY}'
-      }
-    }
-  },
-
-  // Productivity
-  {
-    id: 'slack',
-    name: 'Slack',
-    description: 'Slack workspace integration',
-    icon: 'ChatBubbleLeftRightIcon',
-    category: 'productivity',
-    defaultConfig: {
-      transportType: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-slack'],
-      env: { SLACK_TOKEN: '${SLACK_TOKEN}' }
-    }
-  },
+  // Memory - VERIFIED WORKING
   {
     id: 'memory',
     name: 'Memory',
@@ -164,6 +114,8 @@ export const MCP_SERVER_TEMPLATES: MCPServerTemplate[] = [
       args: ['-y', '@modelcontextprotocol/server-memory'],
     }
   },
+
+  // Sequential Thinking - VERIFIED WORKING
   {
     id: 'sequential-thinking',
     name: 'Sequential Thinking',
@@ -173,7 +125,7 @@ export const MCP_SERVER_TEMPLATES: MCPServerTemplate[] = [
     defaultConfig: {
       transportType: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+      args: ['-y', '@sequentiallabs/mcp-server-sequential-thinking'],
     }
   },
 

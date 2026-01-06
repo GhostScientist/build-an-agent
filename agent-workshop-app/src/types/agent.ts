@@ -57,6 +57,13 @@ export interface MCPServerTemplate {
   icon: string
   category: MCPServerCategory
   defaultConfig: Partial<MCPServer>
+  // For servers that require user input (e.g., API keys)
+  requiresInput?: boolean
+  inputId?: string
+  inputDescription?: string
+  // For servers that require manual configuration after download
+  requiresConfiguration?: boolean
+  configurationNote?: string
 }
 
 // ============================================================================

@@ -2858,7 +2858,7 @@ export class ${className}Agent {
     // Build agent configuration matching tiny-agents agent.json format
     const agentConfig: any = {
       model: '${config.model || 'Qwen/Qwen2.5-72B-Instruct'}',
-      provider: this.config.provider || 'nebius',
+      provider: this.config.provider || 'auto',
       apiKey,
       servers: this.mcpServers
     };
@@ -5913,7 +5913,7 @@ function generateTinyAgentJson(config: AgentConfig): string {
   // Build the agent.json structure matching HuggingFace tiny-agents format
   const agentConfig: any = {
     model: config.model || 'Qwen/Qwen2.5-72B-Instruct',
-    provider: 'nebius',
+    provider: 'auto',
     servers
   };
 
