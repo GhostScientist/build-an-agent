@@ -2764,10 +2764,6 @@ function generateHuggingFaceAgent(imports: string[], className: string, config: 
 import { PermissionManager, type PermissionPolicy } from './permissions.js';
 import { MCPConfigManager } from './mcp-config.js';
 import { loadClaudeConfig, formatSkillsForPrompt, type ClaudeConfig } from './claude-config.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 
