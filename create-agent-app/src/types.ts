@@ -2,7 +2,7 @@
 
 export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge';
 
-export type SDKProvider = 'claude' | 'openai';
+export type SDKProvider = 'claude' | 'openai' | 'huggingface';
 
 export type PermissionLevel = 'restrictive' | 'balanced' | 'permissive';
 

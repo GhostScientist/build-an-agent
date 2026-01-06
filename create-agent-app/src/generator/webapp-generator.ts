@@ -3,6 +3,20 @@ import { AGENT_TEMPLATES } from '../data/agent-templates.js';
 
 const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
 
+// Helper function to get the correct API key environment variable name for each provider
+function getApiKeyEnvVar(provider: string | undefined): string {
+  switch (provider) {
+    case 'claude':
+      return 'ANTHROPIC_API_KEY';
+    case 'openai':
+      return 'OPENAI_API_KEY';
+    case 'huggingface':
+      return 'HF_TOKEN';
+    default:
+      return 'ANTHROPIC_API_KEY';
+  }
+}
+
 // Helper function to sanitize names for use in TypeScript class names and identifiers
 function sanitizeClassName(name: string): string {
   return name
@@ -80,6 +94,24 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     type: 'json',
     template: '.mcp.json'
   })
+
+  // Generate agent.json for HuggingFace tiny-agents
+  if (config.sdkProvider === 'huggingface') {
+    files.push({
+      path: 'agent.json',
+      content: generateTinyAgentJson(config),
+      type: 'json',
+      template: 'agent.json'
+    })
+
+    // Generate AGENTS.md (custom prompt file for tiny-agents)
+    files.push({
+      path: 'AGENTS.md',
+      content: generateTinyAgentPrompt(config, template),
+      type: 'markdown',
+      template: 'AGENTS.md'
+    })
+  }
 
   // Generate tool implementations based on enabled tools
   const toolCategories = Array.from(new Set(enabledTools.map(tool => tool.category)))
@@ -416,6 +448,12 @@ function getDependencies(config: AgentConfig): Record<string, string> {
       baseDeps['@openai/agents'] = '^0.1.0'
       baseDeps['zod'] = '^3.0.0'
       break
+    case 'huggingface':
+      baseDeps['@huggingface/tiny-agents'] = '^0.3.4'
+      baseDeps['@huggingface/mcp-client'] = '^0.1.0'
+      baseDeps['@modelcontextprotocol/sdk'] = '^1.11.4'
+      baseDeps['zod'] = '^3.25.0'
+      break
   }
   
   // Add tool-specific dependencies
@@ -537,15 +575,15 @@ program
       const config = configManager.get();
       console.log(chalk.cyan('\\n📋 Current Configuration:'));
       console.log(chalk.gray('API Key:'), config.apiKey ? '***' + config.apiKey.slice(-4) : chalk.red('Not set'));
-      console.log(chalk.gray('Source:'), process.env.${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY ? 'Environment variable' : 'Config file');
+      console.log(chalk.gray('Source:'), process.env.${getApiKeyEnvVar(config.sdkProvider)} ? 'Environment variable' : 'Config file');
       return;
     }
 
     console.log(chalk.yellow('\\n🔐 API Key Configuration\\n'));
     console.log(chalk.white('To configure your API key, create a .env file in the project root:\\n'));
-    console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env\\n'));
+    console.log(chalk.gray('  echo "${getApiKeyEnvVar(config.sdkProvider)}=your-key-here" > .env\\n'));
     console.log(chalk.white('Or set the environment variable directly:\\n'));
-    console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here\\n'));
+    console.log(chalk.gray('  export ${getApiKeyEnvVar(config.sdkProvider)}=your-key-here\\n'));
     console.log(chalk.cyan('Tip: Copy .env.example to .env and fill in your API key.'));
   });
 
@@ -562,9 +600,9 @@ program
       if (!configManager.hasApiKey()) {
         console.log(chalk.red('❌ No API key found.'));
         console.log(chalk.yellow('\\nCreate a .env file with your API key:'));
-        console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env'));
+        console.log(chalk.gray('  echo "${getApiKeyEnvVar(config.sdkProvider)}=your-key-here" > .env'));
         console.log(chalk.yellow('\\nOr set the environment variable:'));
-        console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here'));
+        console.log(chalk.gray('  export ${getApiKeyEnvVar(config.sdkProvider)}=your-key-here'));
         process.exit(1);
       }
 
@@ -2013,6 +2051,8 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       return generateClaudeAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'openai':
       return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
+    case 'huggingface':
+      return generateHuggingFaceAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     default:
       throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
   }
@@ -2700,6 +2740,281 @@ Always be helpful, accurate, and focused on ${config.domain} tasks. Use the prov
 }`
 }
 
+function generateHuggingFaceAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
+  // HuggingFace tiny-agents uses a different import structure
+  const hfImports = [
+    `import { Agent } from '@huggingface/tiny-agents';`
+  ]
+
+  if (hasFileOps) {
+    hfImports.push(`import { FileOperations } from './tools/file-operations.js';`)
+  }
+  if (hasCommands) {
+    hfImports.push(`import { CommandRunner } from './tools/command-runner.js';`)
+  }
+  if (hasWeb) {
+    hfImports.push(`import { WebTools } from './tools/web-tools.js';`)
+  }
+  if (hasKnowledge) {
+    hfImports.push(`import { KnowledgeTools } from './tools/knowledge-tools.js';`)
+  }
+
+  return `${hfImports.join('\n')}
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
+import { MCPConfigManager } from './mcp-config.js';
+import { loadClaudeConfig, formatSkillsForPrompt, type ClaudeConfig } from './claude-config.js';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface ${className}AgentConfig {
+  verbose?: boolean;
+  apiKey?: string;
+  provider?: string;
+  endpointUrl?: string;
+  permissionManager?: PermissionManager;
+  permissions?: PermissionPolicy;
+  auditPath?: string;
+  workingDir?: string;
+}
+
+export class ${className}Agent {
+  private config: ${className}AgentConfig;
+  private agent: Agent | null = null;
+  private permissionManager: PermissionManager;${hasFileOps ? `
+  private fileOps: FileOperations;` : ''}${hasCommands ? `
+  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
+  private webTools: WebTools;` : ''}${hasKnowledge ? `
+  private knowledgeTools: KnowledgeTools;` : ''}
+  private mcpConfigManager: MCPConfigManager;
+  private claudeConfig: ClaudeConfig;
+  private mcpServers: Array<{ type: string; command?: string; args?: string[]; url?: string }> = [];
+
+  constructor(config: ${className}AgentConfig = {}) {
+    this.config = config;
+    this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });${hasFileOps ? `
+    this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
+    this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
+    this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
+
+    // Initialize MCP config manager with correct path
+    const mcpJsonPath = path.join(config.workingDir || process.cwd(), '.mcp.json');
+    this.mcpConfigManager = new MCPConfigManager(mcpJsonPath);
+
+    // Load agent configuration (CLAUDE.md format, skills, commands)
+    this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
+  }
+
+  private async buildMcpServers(): Promise<void> {
+    // Load any configured MCP servers from .mcp.json using MCPConfigManager
+    try {
+      await this.mcpConfigManager.load();
+      
+      for (const [name, serverConfig] of Object.entries(this.mcpConfigManager.getEnabledServers())) {
+        const resolved = this.mcpConfigManager.resolveEnvVariables(serverConfig);
+        
+        if (resolved.type === 'stdio') {
+          this.mcpServers.push({
+            type: 'stdio',
+            command: resolved.command,
+            args: resolved.args || []
+          });
+        } else if (resolved.type === 'sse' || resolved.type === 'http') {
+          this.mcpServers.push({
+            type: resolved.type,
+            url: resolved.url
+          });
+        }
+      }
+    } catch (err) {
+      // Errors reading/parsing optional MCP config are non-fatal; proceed without MCP servers.
+      // Log details only in verbose/debug modes to aid diagnosing configuration issues.
+      if (process.env.DEBUG || process.env.VERBOSE) {
+        console.error('Failed to load MCP configuration from .mcp.json:', err);
+      }
+    }
+  }
+
+  /**
+   * Get loaded agent configuration.
+   */
+  getAgentConfig(): ClaudeConfig {
+    return this.claudeConfig;
+  }
+
+  /**
+   * @deprecated Use getAgentConfig() instead.
+   * Get loaded agent configuration.
+   */
+  getClaudeConfig(): ClaudeConfig {
+    return this.getAgentConfig();
+  }
+  private async initializeAgent(): Promise<void> {
+    if (this.agent) return;
+
+    // Load MCP servers before initializing the agent
+    await this.buildMcpServers();
+
+    // Get API key
+    const apiKey = this.config.apiKey || process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
+    if (!apiKey) {
+      throw new Error('HuggingFace API token is required. Set it via config.apiKey or the HF_TOKEN environment variable (HUGGINGFACE_TOKEN is also supported for backwards compatibility).');
+    }
+
+    // Build agent configuration matching tiny-agents agent.json format
+    const agentConfig: any = {
+      model: '${config.model || 'Qwen/Qwen2.5-72B-Instruct'}',
+      provider: this.config.provider || 'nebius',
+      apiKey,
+      servers: this.mcpServers
+    };
+
+    // If custom endpoint URL is provided, use it instead of provider
+    if (this.config.endpointUrl) {
+      delete agentConfig.provider;
+      agentConfig.endpointUrl = this.config.endpointUrl;
+    }
+
+    this.agent = new Agent(agentConfig);
+    await this.agent.loadTools();
+  }
+
+  async *query(userQuery: string, history: Array<{role: string, content: string}> = []) {
+    await this.initializeAgent();
+
+    const systemPrompt = this.buildSystemPrompt();
+
+    // Build the full prompt with history context
+    let fullPrompt = userQuery;
+    if (history.length > 0) {
+      const contextLines = history.map(h =>
+        \`\${h.role === 'user' ? 'User' : 'Assistant'}: \${h.content}\`
+      ).join('\\n\\n');
+      fullPrompt = \`\${systemPrompt}\\n\\nPrevious conversation:\\n\${contextLines}\\n\\nUser: \${userQuery}\`;
+    } else {
+      fullPrompt = \`\${systemPrompt}\\n\\nUser: \${userQuery}\`;
+    }
+
+    try {
+      let fullResponse = '';
+
+      // Use the tiny-agents run method which returns an async iterator
+      for await (const chunk of this.agent!.run(fullPrompt)) {
+        // Handle different chunk types from tiny-agents
+        if ('choices' in chunk) {
+          const choice = chunk.choices[0];
+          if (choice?.delta?.content) {
+            fullResponse += choice.delta.content;
+            yield {
+              type: 'stream_event',
+              event: {
+                type: 'content_block_delta',
+                delta: {
+                  type: 'text_delta',
+                  text: choice.delta.content
+                }
+              }
+            };
+          }
+          // Handle tool calls from the response
+          if (choice?.delta?.tool_calls) {
+            for (const toolCall of choice.delta.tool_calls) {
+              yield {
+                type: 'stream_event',
+                event: {
+                  type: 'content_block_start',
+                  content_block: {
+                    type: 'tool_use',
+                    name: toolCall.function?.name || 'unknown'
+                  }
+                }
+              };
+            }
+          }
+        }
+      }
+
+      // Yield final result
+      yield {
+        type: 'result',
+        subtype: 'success',
+        result: fullResponse
+      };
+    } catch (error) {
+      console.error('HuggingFace tiny-agents error:', error);
+      throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
+    }
+  }
+
+  private buildSystemPrompt(): string {
+    // Build memory section from CLAUDE.md if available
+    const memorySection = this.claudeConfig.memory
+      ? \`## Project Context:\\n\${this.claudeConfig.memory}\\n\\n\`
+      : '';
+
+    // Build skills section if any skills are loaded
+    const skillsSection = this.claudeConfig.skills.length > 0
+      ? \`## Available Skills:\\n\${formatSkillsForPrompt(this.claudeConfig.skills)}\\n\\nWhen the user asks you to use a skill, apply the skill's instructions to the current context.\\n\\n\`
+      : '';
+
+    // Build commands info if any are loaded
+    const commandsSection = this.claudeConfig.commands.length > 0
+      ? '## Slash Commands:\\nThe user can invoke these commands with /command-name:\\n' + this.claudeConfig.commands.map(c => '- **/' + c.name + '**: ' + (c.description || 'No description')).join('\\n') + '\\n\\n'
+      : '';
+
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+\${memorySection}${config.customInstructions || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+\${skillsSection}\${commandsSection}## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }${hasFileOps ? `
+
+  // File operation helpers
+  async readFile(filePath: string): Promise<string> {
+    return this.fileOps.readFile(filePath);
+  }
+
+  async writeFile(filePath: string, content: string): Promise<void> {
+    return this.fileOps.writeFile(filePath, content);
+  }
+
+  async findFiles(pattern: string): Promise<string[]> {
+    return this.fileOps.findFiles(pattern);
+  }` : ''}${hasCommands ? `
+
+  // Command execution helpers
+  async runCommand(command: string): Promise<void> {
+    const result = await this.commandRunner.execute(command);
+    console.log(this.commandRunner.formatResult(result));
+  }` : ''}${hasWeb ? `
+
+  // Web tools helpers
+  async searchWeb(query: string): Promise<string[]> {
+    return this.webTools.search(query);
+  }
+
+  async fetchUrl(url: string): Promise<string> {
+    return this.webTools.fetch(url);
+  }` : ''}${hasKnowledge ? `
+
+  // Knowledge helpers
+  async extractDocument(filePath: string): Promise<string> {
+    const result = await this.knowledgeTools.extractText(filePath, true);
+    return result.text;
+  }
+
+  async retrieveLocal(query: string, limit = 5): Promise<string> {
+    return this.knowledgeTools.searchLocal(query, limit);
+  }` : ''}
+}`
+}
+
 function generateConfig(config: AgentConfig): string {
   return `import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -2725,8 +3040,8 @@ export class ConfigManager {
     }
 
     // Override with environment variables
-    if (process.env.${config.sdkProvider?.toUpperCase()}_API_KEY) {
-      this.config.apiKey = process.env.${config.sdkProvider?.toUpperCase()}_API_KEY;
+    if (process.env.${getApiKeyEnvVar(config.sdkProvider)}) {
+      this.config.apiKey = process.env.${getApiKeyEnvVar(config.sdkProvider)};
     }
 
     return this.config;
@@ -4115,12 +4430,12 @@ npm start
 Create a \`.env\` file in any directory where you want to use the agent:
 
 \`\`\`bash
-echo "${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here" > .env
+echo "${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here" > .env
 \`\`\`
 
 Or set the environment variable:
 \`\`\`bash
-export ${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
+export ${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here
 \`\`\`
 
 **Note:** When installed globally, the agent loads \`.env\` from your current working directory.
@@ -4300,7 +4615,7 @@ function generateEnvExample(config: AgentConfig): string {
     : '';
 
   return `# API Configuration
-${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
+${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here
 
 # Agent Settings
 VERBOSE=false
@@ -5564,6 +5879,94 @@ function generateMcpJson(config: AgentConfig): string {
   }
 
   return JSON.stringify({ mcpServers }, null, 2);
+}
+
+// =============================================================================
+// HuggingFace Tiny-Agents Configuration
+// =============================================================================
+
+function generateTinyAgentJson(config: AgentConfig): string {
+  // Build MCP servers array for tiny-agents format
+  const servers: Array<{type: string; command?: string; args?: string[]; url?: string}> = [];
+
+  // Convert configured MCP servers to tiny-agents format
+  for (const server of config.mcpServers || []) {
+    if (!server.enabled) continue;
+
+    switch (server.transportType) {
+      case 'stdio':
+        servers.push({
+          type: 'stdio',
+          command: (server as any).command || '',
+          args: (server as any).args || []
+        });
+        break;
+      case 'sse':
+        servers.push({
+          type: 'sse',
+          url: (server as any).url || ''
+        });
+        break;
+      case 'http':
+        servers.push({
+          type: 'http',
+          url: (server as any).url || ''
+        });
+        break;
+      case 'sdk':
+        // Tiny-agents format does not currently support SDK-based MCP transports.
+        // We intentionally skip these but emit a warning so they are not silently ignored.
+        if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+          console.warn('Warning: MCP server with "sdk" transportType is not supported by tiny-agents and will be skipped.');
+        }
+        break;
+    }
+  }
+
+  // Build the agent.json structure matching HuggingFace tiny-agents format
+  const agentConfig: any = {
+    model: config.model || 'Qwen/Qwen2.5-72B-Instruct',
+    provider: 'nebius',
+    servers
+  };
+
+  return JSON.stringify(agentConfig, null, 2);
+}
+
+function generateTinyAgentPrompt(config: AgentConfig, template: any): string {
+  const enabledTools = config.tools.filter(t => t.enabled);
+
+  return `# ${config.name}
+
+${config.description || template?.documentation || `A specialized AI assistant for ${config.domain}.`}
+
+## Instructions
+
+${config.customInstructions || `You are ${config.name}, an AI assistant specialized in ${config.domain} tasks.
+
+- Provide helpful, accurate, and actionable assistance
+- Use your available tools when appropriate
+- Be thorough and explain your reasoning
+- Always prioritize user safety and best practices`}
+
+## Available Capabilities
+
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+## Guidelines
+
+1. When asked to perform tasks, think step-by-step
+2. Use available MCP tools to extend your capabilities
+3. Be honest about limitations and uncertainties
+4. Provide clear, concise responses
+5. Ask clarifying questions when requirements are unclear
+
+${template?.samplePrompts ? `
+## Example Tasks
+
+${template.samplePrompts.map((p: string) => `- ${p}`).join('\n')}
+` : ''}
+`;
 }
 
 // =============================================================================

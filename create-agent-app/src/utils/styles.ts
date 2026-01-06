@@ -28,10 +28,10 @@ export const styles = {
 
 export function printHeader(): void {
   console.log();
-  console.log(styles.brand('   ╔═══════════════════════════════════════╗'));
-  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI               ') + styles.brand('║'));
-  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI') + styles.brand('║'));
-  console.log(styles.brand('   ╚═══════════════════════════════════════╝'));
+  console.log(styles.brand('   ╔════════════════════════════════════════════════╗'));
+  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI                        ') + styles.brand('║'));
+  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI/HF  ') + styles.brand('║'));
+  console.log(styles.brand('   ╚════════════════════════════════════════════════╝'));
   console.log();
 }
 
@@ -44,14 +44,34 @@ export function printSuccess(projectName: string, provider: string): void {
   console.log(`   ${styles.highlight('cd')} ${projectName}`);
   console.log(`   ${styles.highlight('cp')} .env.example .env`);
 
-  const envVar = provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+  let envVar: string;
+  switch (provider) {
+    case 'claude':
+      envVar = 'ANTHROPIC_API_KEY';
+      break;
+    case 'openai':
+      envVar = 'OPENAI_API_KEY';
+      break;
+    case 'huggingface':
+      envVar = 'HF_TOKEN';
+      break;
+    default:
+      envVar = 'ANTHROPIC_API_KEY';
+  }
   console.log(styles.dim(`   # Add your ${envVar} to .env`));
 
   console.log(`   ${styles.highlight('npm run')} build`);
   console.log(`   ${styles.highlight('npm')} start`);
   console.log();
-  console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
-  console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
+
+  if (provider === 'huggingface') {
+    console.log(styles.dim('   This project uses HuggingFace Tiny Agents with MCP support.'));
+    console.log(styles.dim('   → Configure MCP servers in agent.json'));
+    console.log(styles.dim('   → Customize the prompt in AGENTS.md'));
+  } else {
+    console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
+    console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
+  }
   console.log(styles.dim('   → Or use the web builder at https://agent-workshop.dev'));
   console.log();
 }
