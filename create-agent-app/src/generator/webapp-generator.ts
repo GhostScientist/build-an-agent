@@ -2743,8 +2743,7 @@ Always be helpful, accurate, and focused on ${config.domain} tasks. Use the prov
 function generateHuggingFaceAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
   // HuggingFace tiny-agents uses a different import structure
   const hfImports = [
-    `import { Agent } from '@huggingface/tiny-agents';`,
-    `import { MCPClient } from '@huggingface/mcp-client';`
+    `import { Agent } from '@huggingface/tiny-agents';`
   ]
 
   if (hasFileOps) {
