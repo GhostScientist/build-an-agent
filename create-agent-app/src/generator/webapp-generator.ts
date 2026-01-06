@@ -2835,7 +2835,11 @@ export class ${className}Agent {
         }
       }
     } catch (err) {
-      // Ignore errors loading MCP config
+      // Errors reading/parsing optional MCP config are non-fatal; proceed without MCP servers.
+      // Log details only in verbose/debug modes to aid diagnosing configuration issues.
+      if (process.env.DEBUG || process.env.VERBOSE) {
+        console.error('Failed to load MCP configuration from .mcp.json:', err);
+      }
     }
   }
 
