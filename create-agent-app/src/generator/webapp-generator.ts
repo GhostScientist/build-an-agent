@@ -2801,7 +2801,7 @@ export class ${className}Agent {
     // Initialize MCP config manager
     this.mcpConfigManager = new MCPConfigManager();
 
-    // Load Claude Code configuration (CLAUDE.md, skills, commands)
+    // Load agent configuration (CLAUDE.md format, skills, commands)
     this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
 
     // Build MCP servers from configuration
