@@ -2797,36 +2797,33 @@ export class ${className}Agent {
     this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
     this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
 
-    // Initialize MCP config manager
-    this.mcpConfigManager = new MCPConfigManager();
+    // Initialize MCP config manager with correct path
+    const mcpJsonPath = path.join(config.workingDir || process.cwd(), '.mcp.json');
+    this.mcpConfigManager = new MCPConfigManager(mcpJsonPath);
 
     // Load agent configuration (CLAUDE.md format, skills, commands)
     this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
-
-    // Build MCP servers from configuration
-    this.buildMcpServers();
   }
 
-  private buildMcpServers(): void {
-    // Load any configured MCP servers from .mcp.json
+  private async buildMcpServers(): Promise<void> {
+    // Load any configured MCP servers from .mcp.json using MCPConfigManager
     try {
-      const mcpJsonPath = path.join(this.config.workingDir || process.cwd(), '.mcp.json');
-      if (fs.existsSync(mcpJsonPath)) {
-        const mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf-8'));
-        for (const [name, serverConfig] of Object.entries(mcpConfig.servers || {})) {
-          const server = serverConfig as any;
-          if (server.type === 'stdio') {
-            this.mcpServers.push({
-              type: 'stdio',
-              command: server.command,
-              args: server.args || []
-            });
-          } else if (server.type === 'sse' || server.type === 'http') {
-            this.mcpServers.push({
-              type: server.type,
-              url: server.url
-            });
-          }
+      await this.mcpConfigManager.load();
+      
+      for (const [name, serverConfig] of Object.entries(this.mcpConfigManager.getEnabledServers())) {
+        const resolved = this.mcpConfigManager.resolveEnvVariables(serverConfig);
+        
+        if (resolved.type === 'stdio') {
+          this.mcpServers.push({
+            type: 'stdio',
+            command: resolved.command,
+            args: resolved.args || []
+          });
+        } else if (resolved.type === 'sse' || resolved.type === 'http') {
+          this.mcpServers.push({
+            type: resolved.type,
+            url: resolved.url
+          });
         }
       }
     } catch (err) {
@@ -2854,6 +2851,9 @@ export class ${className}Agent {
   }
   private async initializeAgent(): Promise<void> {
     if (this.agent) return;
+
+    // Load MCP servers before initializing the agent
+    await this.buildMcpServers();
 
     // Get API key
     const apiKey = this.config.apiKey || process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
