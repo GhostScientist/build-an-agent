@@ -2863,7 +2863,7 @@ export class ${className}Agent {
     // Get API key
     const apiKey = this.config.apiKey || process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
     if (!apiKey) {
-      throw new Error('HuggingFace API token is required. Set it via config.apiKey, HF_TOKEN, or HUGGINGFACE_TOKEN environment variable.');
+      throw new Error('HuggingFace API token is required. Set it via config.apiKey or the HF_TOKEN environment variable (HUGGINGFACE_TOKEN is also supported for backwards compatibility).');
     }
 
     // Build agent configuration matching tiny-agents agent.json format
