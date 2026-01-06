@@ -30,7 +30,7 @@ export function printHeader(): void {
   console.log();
   console.log(styles.brand('   ╔════════════════════════════════════════════════╗'));
   console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI                        ') + styles.brand('║'));
-  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI/HuggingFace') + styles.brand('║'));
+  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI/HF  ') + styles.brand('║'));
   console.log(styles.brand('   ╚════════════════════════════════════════════════╝'));
   console.log();
 }
