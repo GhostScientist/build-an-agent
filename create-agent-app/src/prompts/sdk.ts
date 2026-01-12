@@ -18,17 +18,17 @@ export async function promptSDK(): Promise<SDKAnswers> {
     choices: [
       {
         name: 'claude',
-        message: 'Claude (Anthropic)',
+        message: `Claude (Anthropic) ${styles.dim('- Full TypeScript app')}`,
         value: 'claude',
       },
       {
         name: 'openai',
-        message: 'OpenAI',
+        message: `OpenAI ${styles.dim('- Full TypeScript app')}`,
         value: 'openai',
       },
       {
         name: 'huggingface',
-        message: 'HuggingFace (Tiny Agents)',
+        message: `HuggingFace Tiny Agents ${styles.dim('- Lightweight, instant run')}`,
         value: 'huggingface',
       },
     ],
