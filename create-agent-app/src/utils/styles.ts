@@ -41,22 +41,22 @@ export function printSuccess(projectName: string, provider: string): void {
   console.log();
   console.log(styles.dim('   Next steps:'));
   console.log();
-  console.log(`   ${styles.highlight('cd')} ${projectName}`);
 
   // HuggingFace uses lightweight config - different flow
   if (provider === 'huggingface') {
     console.log(`   ${styles.highlight('export')} HF_TOKEN="hf_your_token_here"`);
-    console.log(`   ${styles.highlight('npx')} @huggingface/tiny-agents run .`);
+    console.log(`   ${styles.highlight('npx')} @huggingface/tiny-agents run ./${projectName}`);
     console.log();
     console.log(styles.dim('   This is a lightweight tiny-agent config (no build step needed!)'));
-    console.log(styles.dim('   → Configure MCP servers in agent.json'));
-    console.log(styles.dim('   → Customize the prompt in PROMPT.md'));
+    console.log(styles.dim(`   → Configure MCP servers in ${projectName}/agent.json`));
+    console.log(styles.dim(`   → Customize the prompt in ${projectName}/PROMPT.md`));
     console.log();
     console.log(styles.dim('   To contribute to tiny-agents:'));
     console.log(styles.dim('   → Go to https://huggingface.co/datasets/tiny-agents/tiny-agents'));
     console.log(styles.dim('   → Click Community → New Pull Request'));
     console.log(styles.dim('   → Upload your agent folder and submit'));
   } else {
+    console.log(`   ${styles.highlight('cd')} ${projectName}`);
     // Claude/OpenAI - full TypeScript app
     console.log(`   ${styles.highlight('cp')} .env.example .env`);
 

@@ -55,6 +55,25 @@ export interface MCPSdkServer extends MCPServerBase {
 
 export type MCPServer = MCPStdioServer | MCPHttpServer | MCPSseServer | MCPSdkServer;
 
+export interface MCPServerTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: MCPServerCategory;
+  requiresInput?: boolean;
+  inputId?: string;
+  inputDescription?: string;
+  requiresConfiguration?: boolean;
+  configurationNote?: string;
+  defaultConfig: {
+    transportType: MCPTransportType;
+    command?: string;
+    args?: string[];
+    url?: string;
+    env?: Record<string, string>;
+  };
+}
+
 export interface AgentTemplate {
   id: string;
   name: string;
