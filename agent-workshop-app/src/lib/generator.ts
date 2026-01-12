@@ -1,7 +1,47 @@
 import { AgentConfig, GeneratedProject, GeneratedFile, ProjectMetadata } from '@/types/agent'
 import { AGENT_TEMPLATES } from '@/types/agent'
 
+// Wiki generation imports
+export {
+  ASTChunker,
+  CodeAnalyzer,
+  DomainMapper,
+  WikiGenerator,
+  SemanticSearch,
+  RelationshipGraph,
+  analyzeFile,
+  analyzeCodebase,
+  inferDomainModel,
+  buildSemanticIndex,
+  generateWiki,
+  generateComprehensiveWiki
+} from './wiki'
+
+export type {
+  // AST types
+  ASTChunk,
+  ChunkType,
+  FileAnalysis,
+  // Analysis types
+  CodebaseAnalysis,
+  ArchitecturalPattern,
+  ModuleInfo,
+  // Domain types
+  DomainModel,
+  DomainEntity,
+  DomainService,
+  BusinessWorkflow,
+  // Wiki types
+  WikiConfig,
+  WikiDocument,
+  WikiFrontmatter,
+  // Semantic types
+  SemanticIndex,
+  SemanticSearchResult
+} from './wiki'
+
 const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
+const WIKI_TOOL_IDS = ['wiki-generate', 'code-analyze', 'domain-map', 'semantic-search']
 
 // Helper function to get the correct API key environment variable name for each provider
 function getApiKeyEnvVar(provider: string | undefined): string {
@@ -4348,6 +4388,287 @@ export class KnowledgeTools {
 }
 `
   }
+}
+
+/**
+ * Check if wiki tools are enabled
+ */
+function hasWikiTools(enabledTools: any[]): boolean {
+  return enabledTools.some(t => WIKI_TOOL_IDS.includes(t.id))
+}
+
+/**
+ * Generate WikiTools class for architectural documentation generation.
+ * Uses AST-based code analysis to create documentation that links
+ * code to business domain concepts.
+ *
+ * IMPORTANT: Generated wiki documents have titles ONLY in frontmatter,
+ * NOT duplicated as H1 headings in the content body. This fixes the
+ * duplicate title issue reported in generated documentation.
+ */
+function generateWikiToolsClass(): string {
+  return `
+import { mkdir, writeFile } from 'fs/promises'
+import { join, dirname } from 'path'
+import { readFileSync } from 'fs'
+import { glob } from 'glob'
+import ts from 'typescript'
+
+// ─── Wiki Types ────────────────────────────────────────────────────────────
+
+export interface WikiConfig {
+  outputPath: string
+  projectName: string
+  projectDescription?: string
+  includeTechnicalDetails: boolean
+  includeBusinessContext: boolean
+  includeCodeLinks: boolean
+}
+
+export interface WikiDocument {
+  path: string
+  title: string
+  description: string
+  content: string
+  sources: string[]
+}
+
+export interface CodeAnalysisResult {
+  files: number
+  classes: number
+  functions: number
+  interfaces: number
+  patterns: string[]
+  complexity: number
+}
+
+export interface DomainInfo {
+  name: string
+  entities: string[]
+  services: string[]
+  events: string[]
+}
+
+// ─── Wiki Tools Class ──────────────────────────────────────────────────────
+
+export class WikiTools {
+  private workspaceRoot: string
+
+  constructor(workspaceRoot: string = process.cwd()) {
+    this.workspaceRoot = workspaceRoot
+  }
+
+  /**
+   * Generate architectural wiki for a codebase.
+   * Uses AST analysis to understand code structure.
+   */
+  async generateWiki(
+    sourcePath: string,
+    config: Partial<WikiConfig> = {}
+  ): Promise<WikiDocument[]> {
+    const fullConfig: WikiConfig = {
+      outputPath: './docs/wiki',
+      projectName: 'Project',
+      includeTechnicalDetails: true,
+      includeBusinessContext: true,
+      includeCodeLinks: true,
+      ...config
+    }
+
+    const analysis = await this.analyzeCodebase(sourcePath)
+    const domain = this.inferDomain(analysis)
+    const documents: WikiDocument[] = []
+
+    documents.push(this.createOverviewDoc(fullConfig, analysis, domain))
+    documents.push(this.createArchitectureDoc(fullConfig, analysis))
+
+    if (fullConfig.includeBusinessContext) {
+      documents.push(this.createDomainDoc(fullConfig, domain))
+    }
+
+    for (const doc of documents) {
+      await this.writeDocument(doc, fullConfig.outputPath)
+    }
+
+    return documents
+  }
+
+  /**
+   * Analyze codebase using AST parsing.
+   * Extracts classes, functions, interfaces, and detects patterns.
+   */
+  async analyzeCodebase(sourcePath: string): Promise<CodeAnalysisResult> {
+    const files = await glob('**/*.{ts,tsx}', {
+      cwd: sourcePath,
+      ignore: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
+      absolute: true
+    })
+
+    let classes = 0, functions = 0, interfaces = 0, totalComplexity = 0
+    const patterns: Set<string> = new Set()
+
+    for (const file of files) {
+      const content = readFileSync(file, 'utf-8')
+      const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
+
+      const visit = (node: ts.Node) => {
+        if (ts.isClassDeclaration(node)) {
+          classes++
+          const name = node.name?.text ?? ''
+          if (/Repository|Repo/i.test(name)) patterns.add('Repository Pattern')
+          if (/Service/i.test(name)) patterns.add('Service Layer')
+          if (/Factory/i.test(name)) patterns.add('Factory Pattern')
+        }
+        if (ts.isFunctionDeclaration(node)) {
+          functions++
+          if (/^use[A-Z]/.test(node.name?.text ?? '')) patterns.add('React Hooks')
+        }
+        if (ts.isInterfaceDeclaration(node)) interfaces++
+        if (ts.isIfStatement(node)) totalComplexity++
+        ts.forEachChild(node, visit)
+      }
+
+      ts.forEachChild(sourceFile, visit)
+    }
+
+    return {
+      files: files.length,
+      classes,
+      functions,
+      interfaces,
+      patterns: Array.from(patterns),
+      complexity: Math.round(totalComplexity / Math.max(files.length, 1))
+    }
+  }
+
+  /**
+   * Infer business domain from code analysis.
+   */
+  inferDomain(analysis: CodeAnalysisResult): DomainInfo {
+    let name = 'Application'
+    if (analysis.patterns.includes('React Hooks')) name = 'Web Application'
+    if (analysis.patterns.includes('Repository Pattern')) name = 'Data-Driven Application'
+    return { name, entities: [], services: [], events: [] }
+  }
+
+  /**
+   * Search for semantically related code elements.
+   */
+  async semanticSearch(query: string, sourcePath: string): Promise<string[]> {
+    const files = await glob('**/*.{ts,tsx}', {
+      cwd: sourcePath,
+      ignore: ['**/node_modules/**'],
+      absolute: true
+    })
+    const results: { file: string; score: number }[] = []
+    const queryTerms = query.toLowerCase().split(/\\s+/)
+
+    for (const file of files) {
+      const content = readFileSync(file, 'utf-8').toLowerCase()
+      let score = queryTerms.filter(t => content.includes(t)).length
+      if (score > 0) results.push({ file, score })
+    }
+
+    return results.sort((a, b) => b.score - a.score).slice(0, 10).map(r => r.file)
+  }
+
+  // ─── Private document creators ───────────────────────────────────────────
+  // NOTE: Title only in frontmatter - NOT duplicated as H1 in body
+
+  private createOverviewDoc(
+    config: WikiConfig,
+    analysis: CodeAnalysisResult,
+    domain: DomainInfo
+  ): WikiDocument {
+    const content = this.frontmatter(config.projectName + ' - Overview', 'Architectural overview', []) +
+      '\\n\\n## Summary\\n\\n' + (config.projectDescription || 'Project overview.') +
+      '\\n\\nThis codebase contains **' + analysis.files + ' files** with **' + analysis.classes + ' classes**, ' +
+      '**' + analysis.functions + ' functions**, and **' + analysis.interfaces + ' interfaces**.\\n\\n' +
+      '## Quick Stats\\n\\n' +
+      '| Metric | Value |\\n|--------|-------|\\n' +
+      '| Files | ' + analysis.files + ' |\\n' +
+      '| Classes | ' + analysis.classes + ' |\\n' +
+      '| Functions | ' + analysis.functions + ' |\\n' +
+      '| Interfaces | ' + analysis.interfaces + ' |\\n' +
+      '| Avg Complexity | ' + analysis.complexity + ' |\\n\\n' +
+      '## Detected Patterns\\n\\n' +
+      (analysis.patterns.length > 0 ? analysis.patterns.map(p => '- ' + p).join('\\n') : 'No patterns detected.')
+
+    return {
+      path: 'overview.md',
+      title: config.projectName + ' - Overview',
+      description: 'Architectural overview',
+      content,
+      sources: []
+    }
+  }
+
+  private createArchitectureDoc(
+    config: WikiConfig,
+    analysis: CodeAnalysisResult
+  ): WikiDocument {
+    const content = this.frontmatter('System Architecture', 'Technical architecture and design patterns', []) +
+      '\\n\\n## Architecture Overview\\n\\n' +
+      'The system implements **' + analysis.patterns.length + '** recognized architectural patterns.\\n\\n' +
+      '## Detected Patterns\\n\\n' +
+      (analysis.patterns.length > 0
+        ? analysis.patterns.map(p => '### ' + p + '\\n\\nThis pattern was detected in the codebase.').join('\\n\\n')
+        : 'No patterns detected.') +
+      '\\n\\n## Code Metrics\\n\\n' +
+      '- **Average Complexity**: ' + analysis.complexity + '\\n' +
+      '- **Total Classes**: ' + analysis.classes + '\\n' +
+      '- **Total Functions**: ' + analysis.functions
+
+    return {
+      path: 'architecture.md',
+      title: 'System Architecture',
+      description: 'Technical architecture and design patterns',
+      content,
+      sources: []
+    }
+  }
+
+  private createDomainDoc(config: WikiConfig, domain: DomainInfo): WikiDocument {
+    const content = this.frontmatter(domain.name + ' Domain Model', 'Business domain model', []) +
+      '\\n\\n## Domain Overview\\n\\n' +
+      'This is a **' + domain.name + '** system.\\n\\n' +
+      '## Entities\\n\\n' +
+      (domain.entities.length > 0 ? domain.entities.map(e => '- ' + e).join('\\n') : 'No entities identified.') +
+      '\\n\\n## Services\\n\\n' +
+      (domain.services.length > 0 ? domain.services.map(s => '- ' + s).join('\\n') : 'No services identified.') +
+      '\\n\\n## Events\\n\\n' +
+      (domain.events.length > 0 ? domain.events.map(e => '- ' + e).join('\\n') : 'No events identified.')
+
+    return {
+      path: 'domain-model.md',
+      title: domain.name + ' Domain Model',
+      description: 'Business domain model',
+      content,
+      sources: []
+    }
+  }
+
+  /**
+   * Generate YAML frontmatter for wiki documents.
+   * CRITICAL: Title is ONLY in frontmatter, NOT duplicated as H1 in body.
+   */
+  private frontmatter(title: string, desc: string, sources: string[]): string {
+    return '---\\n' +
+      'title: ' + title + '\\n' +
+      'generated: \\'' + new Date().toISOString() + '\\'\\n' +
+      'description: >-\\n  ' + desc + '\\n' +
+      'related: []\\n' +
+      'sources: ' + (sources.length > 0 ? '\\n' + sources.map(s => '  - ' + s).join('\\n') : '[]') + '\\n' +
+      '---'
+  }
+
+  private async writeDocument(doc: WikiDocument, outputPath: string): Promise<void> {
+    const fullPath = join(outputPath, doc.path)
+    await mkdir(dirname(fullPath), { recursive: true })
+    await writeFile(fullPath, doc.content, 'utf-8')
+  }
+}
+`
 }
 
 function generateReadme(config: AgentConfig, template: any, enabledTools: any[]): string {
