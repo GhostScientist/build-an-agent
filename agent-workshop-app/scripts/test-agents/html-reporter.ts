@@ -31,7 +31,7 @@ export interface TestResult {
 }
 
 export interface SuiteResult {
-  provider: 'claude' | 'openai'
+  provider: 'claude' | 'openai' | 'copilot'
   template: string
   total: number
   passed: number

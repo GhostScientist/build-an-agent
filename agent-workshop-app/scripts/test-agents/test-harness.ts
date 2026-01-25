@@ -259,12 +259,15 @@ export async function ensureBuilt(agentDir: string, verbose = false): Promise<bo
 /**
  * Check if required API keys are available
  */
-export function checkApiKeys(provider: 'claude' | 'openai'): { available: boolean; key?: string } {
+export function checkApiKeys(provider: 'claude' | 'openai' | 'copilot'): { available: boolean; key?: string } {
   if (provider === 'claude') {
     const key = process.env.ANTHROPIC_API_KEY
     return { available: !!key, key }
-  } else {
+  } else if (provider === 'openai') {
     const key = process.env.OPENAI_API_KEY
+    return { available: !!key, key }
+  } else {
+    const key = process.env.GITHUB_TOKEN
     return { available: !!key, key }
   }
 }

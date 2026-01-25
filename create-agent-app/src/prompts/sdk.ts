@@ -30,6 +30,11 @@ export async function promptProviderOnly(): Promise<{ provider: SDKProvider }> {
         value: 'openai',
       },
       {
+        name: 'copilot',
+        message: `GitHub Copilot ${styles.dim('- Full TypeScript app via Copilot SDK')}`,
+        value: 'copilot',
+      },
+      {
         name: 'huggingface',
         message: `HuggingFace Tiny Agents ${styles.dim('- Lightweight, instant run')}`,
         value: 'huggingface',

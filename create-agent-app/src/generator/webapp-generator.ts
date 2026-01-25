@@ -12,6 +12,8 @@ function getApiKeyEnvVar(provider: string | undefined): string {
       return 'OPENAI_API_KEY';
     case 'huggingface':
       return 'HF_TOKEN';
+    case 'copilot':
+      return 'GITHUB_TOKEN';
     default:
       return 'ANTHROPIC_API_KEY';
   }
@@ -452,6 +454,10 @@ function getDependencies(config: AgentConfig): Record<string, string> {
       baseDeps['@huggingface/tiny-agents'] = '^0.3.4'
       baseDeps['@huggingface/mcp-client'] = '^0.1.0'
       baseDeps['@modelcontextprotocol/sdk'] = '^1.11.4'
+      baseDeps['zod'] = '^3.25.0'
+      break
+    case 'copilot':
+      baseDeps['@github/copilot-sdk'] = '^0.1.13'
       baseDeps['zod'] = '^3.25.0'
       break
   }
@@ -2019,7 +2025,7 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
   const hasKnowledge = enabledTools.some(t => KNOWLEDGE_TOOL_IDS.includes(t.id))
   
   let imports: string[] = []
-  
+
   // Add SDK-specific imports
   switch (config.sdkProvider) {
     case 'claude':
@@ -2028,6 +2034,10 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       break
     case 'openai':
       imports.push(`import { Agent, run, tool } from '@openai/agents';`)
+      break
+    case 'copilot':
+      imports.push(`import { CopilotClient, defineTool } from '@github/copilot-sdk';`)
+      imports.push(`import { z } from 'zod';`)
       break
   }
   
@@ -2053,6 +2063,8 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'huggingface':
       return generateHuggingFaceAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
+    case 'copilot':
+      return generateCopilotAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     default:
       throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
   }
@@ -2973,6 +2985,433 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 ${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }${hasFileOps ? `
+
+  // File operation helpers
+  async readFile(filePath: string): Promise<string> {
+    return this.fileOps.readFile(filePath);
+  }
+
+  async writeFile(filePath: string, content: string): Promise<void> {
+    return this.fileOps.writeFile(filePath, content);
+  }
+
+  async findFiles(pattern: string): Promise<string[]> {
+    return this.fileOps.findFiles(pattern);
+  }` : ''}${hasCommands ? `
+
+  // Command execution helpers
+  async runCommand(command: string): Promise<void> {
+    const result = await this.commandRunner.execute(command);
+    console.log(this.commandRunner.formatResult(result));
+  }` : ''}${hasWeb ? `
+
+  // Web tools helpers
+  async searchWeb(query: string): Promise<string[]> {
+    return this.webTools.search(query);
+  }
+
+  async fetchUrl(url: string): Promise<string> {
+    return this.webTools.fetch(url);
+  }` : ''}${hasKnowledge ? `
+
+  // Knowledge helpers
+  async extractDocument(filePath: string): Promise<string> {
+    const result = await this.knowledgeTools.extractText(filePath, true);
+    return result.text;
+  }
+
+  async retrieveLocal(query: string, limit = 5): Promise<string> {
+    return this.knowledgeTools.searchLocal(query, limit);
+  }` : ''}
+}`
+}
+
+function generateCopilotAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
+  // Copilot SDK uses a similar pattern but with CopilotClient and defineTool
+  const copilotImports = [
+    `import { CopilotClient, defineTool } from '@github/copilot-sdk';`,
+    `import { z } from 'zod';`
+  ]
+
+  if (hasFileOps) {
+    copilotImports.push(`import { FileOperations } from './tools/file-operations.js';`)
+  }
+  if (hasCommands) {
+    copilotImports.push(`import { CommandRunner } from './tools/command-runner.js';`)
+  }
+  if (hasWeb) {
+    copilotImports.push(`import { WebTools } from './tools/web-tools.js';`)
+  }
+  if (hasKnowledge) {
+    copilotImports.push(`import { KnowledgeTools } from './tools/knowledge-tools.js';`)
+  }
+
+  return `${copilotImports.join('\n')}
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
+import { MCPConfigManager } from './mcp-config.js';
+import { loadClaudeConfig, formatSkillsForPrompt, type ClaudeConfig } from './claude-config.js';
+
+export interface ${className}AgentConfig {
+  verbose?: boolean;
+  apiKey?: string;
+  model?: string;
+  permissionManager?: PermissionManager;
+  permissions?: PermissionPolicy;
+  auditPath?: string;
+  workingDir?: string;
+  cliUrl?: string;  // Optional external Copilot CLI server URL
+}
+
+export class ${className}Agent {
+  private config: ${className}AgentConfig;
+  private client: CopilotClient | null = null;
+  private session: any = null;
+  private permissionManager: PermissionManager;${hasFileOps ? `
+  private fileOps: FileOperations;` : ''}${hasCommands ? `
+  private commandRunner: CommandRunner;` : ''}${hasWeb ? `
+  private webTools: WebTools;` : ''}${hasKnowledge ? `
+  private knowledgeTools: KnowledgeTools;` : ''}
+  private mcpConfigManager: MCPConfigManager;
+  private claudeConfig: ClaudeConfig;
+
+  constructor(config: ${className}AgentConfig = {}) {
+    this.config = config;
+    this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });${hasFileOps ? `
+    this.fileOps = new FileOperations(this.permissionManager);` : ''}${hasCommands ? `
+    this.commandRunner = new CommandRunner(this.permissionManager);` : ''}${hasWeb ? `
+    this.webTools = new WebTools(this.permissionManager);` : ''}${hasKnowledge ? `
+    this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
+
+    // Initialize MCP config manager
+    this.mcpConfigManager = new MCPConfigManager(config.workingDir || process.cwd());
+
+    // Load agent configuration (CLAUDE.md format, skills, commands)
+    this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
+  }
+
+  /**
+   * Get loaded agent configuration
+   */
+  getAgentConfig(): ClaudeConfig {
+    return this.claudeConfig;
+  }
+
+  private createTools(): any[] {
+    const tools: any[] = [];${hasFileOps ? `
+
+    // File operation tools
+    tools.push(
+      defineTool('read_file', {
+        description: 'Read the contents of a file',
+        parameters: z.object({
+          filePath: z.string().describe('Path to the file to read')
+        }),
+        handler: async ({ filePath }: { filePath: string }) => {
+          return await this.fileOps.readFile(filePath);
+        }
+      })
+    );
+
+    tools.push(
+      defineTool('write_file', {
+        description: 'Write content to a file (creates or overwrites)',
+        parameters: z.object({
+          filePath: z.string().describe('Path to the file to write'),
+          content: z.string().describe('Content to write to the file')
+        }),
+        handler: async ({ filePath, content }: { filePath: string; content: string }) => {
+          await this.fileOps.writeFile(filePath, content);
+          return \`Successfully wrote to \${filePath}\`;
+        }
+      })
+    );
+
+    tools.push(
+      defineTool('find_files', {
+        description: 'Find files matching a glob pattern',
+        parameters: z.object({
+          pattern: z.string().describe('Glob pattern to match files (e.g., "**/*.ts")')
+        }),
+        handler: async ({ pattern }: { pattern: string }) => {
+          const files = await this.fileOps.findFiles(pattern);
+          return files.join('\\n');
+        }
+      })
+    );` : ''}${hasCommands ? `
+
+    // Command execution tool
+    tools.push(
+      defineTool('run_command', {
+        description: 'Execute a shell command',
+        parameters: z.object({
+          command: z.string().describe('Command to execute')
+        }),
+        handler: async ({ command }: { command: string }) => {
+          const result = await this.commandRunner.execute(command);
+          return this.commandRunner.formatResult(result);
+        }
+      })
+    );` : ''}${hasWeb ? `
+
+    // Web tools
+    tools.push(
+      defineTool('fetch_url', {
+        description: 'Fetch content from a URL',
+        parameters: z.object({
+          url: z.string().describe('URL to fetch')
+        }),
+        handler: async ({ url }: { url: string }) => {
+          return await this.webTools.fetch(url);
+        }
+      })
+    );
+
+    tools.push(
+      defineTool('fetch_text', {
+        description: 'Fetch and extract text content from a URL',
+        parameters: z.object({
+          url: z.string().describe('URL to fetch and extract text from')
+        }),
+        handler: async ({ url }: { url: string }) => {
+          return await this.webTools.fetchText(url);
+        }
+      })
+    );` : ''}${hasKnowledge ? `
+
+    const knowledgeToolsEnabled = new Set(${JSON.stringify(enabledTools.filter(t => KNOWLEDGE_TOOL_IDS.includes(t.id)).map(t => t.id))});
+
+    if (knowledgeToolsEnabled.has('doc-ingest')) {
+      tools.push(
+        defineTool('doc_ingest', {
+          description: 'Extract text from documents (pdf, docx, txt)',
+          parameters: z.object({
+            filePath: z.string().describe('Path to the document'),
+            captureSources: z.boolean().optional().describe('Whether to capture source metadata')
+          }),
+          handler: async ({ filePath, captureSources = true }: { filePath: string; captureSources?: boolean }) => {
+            const result = await this.knowledgeTools.extractText(filePath, captureSources);
+            return result.text;
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('table-extract')) {
+      tools.push(
+        defineTool('table_extract', {
+          description: 'Extract tables from documents into CSV/JSON',
+          parameters: z.object({
+            filePath: z.string().describe('Path to the document')
+          }),
+          handler: async ({ filePath }: { filePath: string }) => {
+            const result = await this.knowledgeTools.extractTables(filePath);
+            if (result.tables.length === 0) return 'No tables found in document.';
+            return result.tables.map((t, i) =>
+              \`Table \${i + 1} (\${t.format}):\\n\${t.rows.slice(0, 5).map(r => r.join(' | ')).join('\\n')}\${t.rows.length > 5 ? \`\\n... and \${t.rows.length - 5} more rows\` : ''}\`
+            ).join('\\n\\n');
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('source-notes')) {
+      tools.push(
+        defineTool('source_notes', {
+          description: 'Append a note with source + citation to the local notebook',
+          parameters: z.object({
+            title: z.string().describe('Title for the note'),
+            source: z.string().describe('Source URL or path'),
+            content: z.string().describe('Summary or quote')
+          }),
+          handler: async ({ title, source, content }: { title: string; source: string; content: string }) => {
+            return await this.knowledgeTools.saveNote(title, source, content);
+          }
+        })
+      );
+    }
+
+    if (knowledgeToolsEnabled.has('local-rag')) {
+      tools.push(
+        defineTool('local_retrieval', {
+          description: 'Search local notes/corpus for grounded snippets',
+          parameters: z.object({
+            query: z.string().describe('Search query'),
+            limit: z.number().optional().describe('Max results')
+          }),
+          handler: async ({ query, limit = 5 }: { query: string; limit?: number }) => {
+            return await this.knowledgeTools.searchLocal(query, limit);
+          }
+        })
+      );
+    }` : ''}
+
+    return tools;
+  }
+
+  private async buildMcpServers(): Promise<Record<string, any>> {
+    const servers: Record<string, any> = {};
+
+    try {
+      await this.mcpConfigManager.load();
+
+      for (const [name, serverConfig] of Object.entries(this.mcpConfigManager.getEnabledServers())) {
+        const resolved = this.mcpConfigManager.resolveEnvVariables(serverConfig);
+
+        if (resolved.type === 'stdio') {
+          servers[name] = {
+            type: 'stdio',
+            command: resolved.command,
+            args: resolved.args || []
+          };
+        } else if (resolved.type === 'http') {
+          servers[name] = {
+            type: 'http',
+            url: resolved.url
+          };
+        }
+      }
+    } catch (err) {
+      // Non-fatal: proceed without MCP servers
+      if (process.env.DEBUG || process.env.VERBOSE) {
+        console.error('Failed to load MCP configuration:', err);
+      }
+    }
+
+    return servers;
+  }
+
+  private buildSystemPrompt(): string {
+    // Build memory section from CLAUDE.md if available
+    const memorySection = this.claudeConfig.memory
+      ? \`## Project Context:\\n\${this.claudeConfig.memory}\\n\\n\`
+      : '';
+
+    // Build skills section if any skills are loaded
+    const skillsSection = this.claudeConfig.skills.length > 0
+      ? \`## Available Skills:\\n\${formatSkillsForPrompt(this.claudeConfig.skills)}\\n\\nWhen the user asks you to use a skill, apply the skill's instructions to the current context.\\n\\n\`
+      : '';
+
+    // Build commands info if any are loaded
+    const commandsSection = this.claudeConfig.commands.length > 0
+      ? '## Slash Commands:\\nThe user can invoke these commands with /command-name:\\n' + this.claudeConfig.commands.map(c => '- **/' + c.name + '**: ' + (c.description || 'No description')).join('\\n') + '\\n\\n'
+      : '';
+
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+\${memorySection}${config.customInstructions || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+\${skillsSection}\${commandsSection}## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }
+
+  private async initializeClient(): Promise<void> {
+    if (this.client) return;
+
+    // GitHub Copilot SDK requires GITHUB_TOKEN for authentication
+    const token = this.config.apiKey || process.env.GITHUB_TOKEN;
+    if (!token) {
+      throw new Error('GitHub token is required. Set it via config.apiKey or GITHUB_TOKEN environment variable.');
+    }
+
+    // Set the token in environment for Copilot CLI
+    process.env.GITHUB_TOKEN = token;
+
+    // Create CopilotClient with optional external server URL
+    const clientOptions: any = {};
+    if (this.config.cliUrl) {
+      clientOptions.cliUrl = this.config.cliUrl;
+    }
+
+    this.client = new CopilotClient(clientOptions);
+    await this.client.start();
+
+    // Load MCP servers
+    const mcpServers = await this.buildMcpServers();
+
+    // Create session with tools and configuration
+    this.session = await this.client.createSession({
+      model: this.config.model || '${config.model || 'gpt-4.1'}',
+      streaming: true,
+      tools: this.createTools(),
+      mcpServers,
+      systemMessage: {
+        content: this.buildSystemPrompt()
+      }
+    });
+  }
+
+  async *query(userQuery: string, history: Array<{role: string, content: string}> = []) {
+    await this.initializeClient();
+
+    try {
+      // Build the prompt with history context
+      let effectivePrompt = userQuery;
+      if (history.length > 0) {
+        const contextLines = history.map(h =>
+          \`\${h.role === 'user' ? 'User' : 'Assistant'}: \${h.content}\`
+        ).join('\\n\\n');
+        effectivePrompt = \`Previous conversation:\\n\${contextLines}\\n\\nUser: \${userQuery}\`;
+      }
+
+      let fullResponse = '';
+
+      // Set up event handler for streaming
+      const done = new Promise<void>((resolve) => {
+        this.session.on((event: any) => {
+          if (event.type === 'assistant.message_delta') {
+            const content = event.data?.deltaContent || '';
+            fullResponse += content;
+          } else if (event.type === 'session.idle') {
+            resolve();
+          }
+        });
+      });
+
+      // Send the message
+      await this.session.send({ prompt: effectivePrompt });
+
+      // Wait for completion
+      await done;
+
+      // Yield as stream event for CLI display
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          delta: {
+            type: 'text_delta',
+            text: fullResponse
+          }
+        }
+      };
+
+      // Also yield as result for programmatic access
+      yield {
+        type: 'result',
+        subtype: 'success',
+        result: fullResponse
+      };
+    } catch (error) {
+      console.error('GitHub Copilot SDK error:', error);
+      throw new Error(\`Failed to generate response: \${error instanceof Error ? error.message : String(error)}\`);
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (this.session) {
+      await this.session.destroy();
+      this.session = null;
+    }
+    if (this.client) {
+      await this.client.stop();
+      this.client = null;
+    }
   }${hasFileOps ? `
 
   // File operation helpers
@@ -4394,7 +4833,7 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 
 - Node.js >= 18.0.0
 - npm or yarn
-- ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : 'API key'}
+- ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : config.sdkProvider === 'copilot' ? 'GitHub Copilot subscription and GitHub token (requires Copilot CLI installed)' : config.sdkProvider === 'huggingface' ? 'HuggingFace API token' : 'API key'}
 
 ## Installation
 

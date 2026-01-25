@@ -57,7 +57,7 @@ interface TestResult {
 }
 
 interface SuiteResult {
-  provider: 'claude' | 'openai'
+  provider: 'claude' | 'openai' | 'copilot'
   template: string
   total: number
   passed: number
@@ -68,7 +68,7 @@ interface SuiteResult {
 }
 
 interface RunConfig {
-  providers: Array<'claude' | 'openai'>
+  providers: Array<'claude' | 'openai' | 'copilot'>
   templates: string[]
   openReport: boolean
   categories: string[]
@@ -116,8 +116,8 @@ function parseArgs(): RunConfig {
 
     switch (arg) {
       case '--provider':
-        const provider = args[++i] as 'claude' | 'openai'
-        if (provider === 'claude' || provider === 'openai') {
+        const provider = args[++i] as 'claude' | 'openai' | 'copilot'
+        if (provider === 'claude' || provider === 'openai' || provider === 'copilot') {
           config.providers = [provider]
         }
         break
@@ -173,7 +173,7 @@ Agent Test Runner
 Usage: tsx scripts/test-agents/runner.ts [options]
 
 Options:
-  --provider <name>   Test only 'claude' or 'openai' (default: both)
+  --provider <name>   Test only 'claude', 'openai', or 'copilot' (default: claude + openai)
   --template <id>     Test specific template (default: representative set)
   --category <name>   Run specific category: simple-chat, multi-turn, workflows
   --budget <n>        Token budget (default: 5000)
@@ -216,7 +216,7 @@ function loadFixtures(categories: string[]): Map<string, TestFixture> {
 // ============================================================================
 
 async function runTestSuite(
-  provider: 'claude' | 'openai',
+  provider: 'claude' | 'openai' | 'copilot',
   template: string,
   fixtures: Map<string, TestFixture>,
   tracker: TokenTracker,
@@ -229,7 +229,7 @@ async function runTestSuite(
   // Determine agent directory
   const agentDir = provider === 'claude'
     ? path.join(GENERATED_AGENTS_DIR, template)
-    : path.join(GENERATED_AGENTS_DIR, `${template}-openai`)
+    : path.join(GENERATED_AGENTS_DIR, `${template}-${provider}`)
 
   // Check if agent exists
   if (!fs.existsSync(agentDir)) {
@@ -280,11 +280,14 @@ async function runTestSuite(
   }
 
   // Create harness
+  const envMap: Record<string, Record<string, string>> = {
+    claude: { ANTHROPIC_API_KEY: apiKeyCheck.key! },
+    openai: { OPENAI_API_KEY: apiKeyCheck.key! },
+    copilot: { GITHUB_TOKEN: apiKeyCheck.key! },
+  }
   const harness = new TestHarness(agentDir, {
     timeout: config.timeout,
-    env: provider === 'claude'
-      ? { ANTHROPIC_API_KEY: apiKeyCheck.key! }
-      : { OPENAI_API_KEY: apiKeyCheck.key! },
+    env: envMap[provider],
     verbose: config.verbose
   })
 
