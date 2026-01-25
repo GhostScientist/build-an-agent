@@ -3096,7 +3096,7 @@ export class ${className}Agent {
         description: 'Read the contents of a file',
         parameters: z.object({
           filePath: z.string().describe('Path to the file to read')
-        }),
+        }) as z.ZodTypeAny,
         handler: async ({ filePath }: { filePath: string }) => {
           return await this.fileOps.readFile(filePath);
         }
@@ -3109,7 +3109,7 @@ export class ${className}Agent {
         parameters: z.object({
           filePath: z.string().describe('Path to the file to write'),
           content: z.string().describe('Content to write to the file')
-        }),
+        }) as z.ZodTypeAny,
         handler: async ({ filePath, content }: { filePath: string; content: string }) => {
           await this.fileOps.writeFile(filePath, content);
           return \`Successfully wrote to \${filePath}\`;
@@ -3122,7 +3122,7 @@ export class ${className}Agent {
         description: 'Find files matching a glob pattern',
         parameters: z.object({
           pattern: z.string().describe('Glob pattern to match files')
-        }),
+        }) as z.ZodTypeAny,
         handler: async ({ pattern }: { pattern: string }) => {
           const files = await this.fileOps.findFiles(pattern);
           return files.join('\\n');
@@ -3135,7 +3135,7 @@ export class ${className}Agent {
         description: 'Execute a shell command',
         parameters: z.object({
           command: z.string().describe('Command to execute')
-        }),
+        }) as z.ZodTypeAny,
         handler: async ({ command }: { command: string }) => {
           const result = await this.commandRunner.execute(command);
           return this.commandRunner.formatResult(result);
@@ -3148,7 +3148,7 @@ export class ${className}Agent {
         description: 'Fetch content from a URL',
         parameters: z.object({
           url: z.string().describe('URL to fetch')
-        }),
+        }) as z.ZodTypeAny,
         handler: async ({ url }: { url: string }) => {
           return await this.webTools.fetch(url);
         }
@@ -3164,7 +3164,7 @@ export class ${className}Agent {
           parameters: z.object({
             filePath: z.string(),
             captureSources: z.boolean().optional()
-          }),
+          }) as z.ZodTypeAny,
           handler: async ({ filePath, captureSources = true }: { filePath: string; captureSources?: boolean }) => {
             const result = await this.knowledgeTools.extractText(filePath, captureSources);
             return result.text;
@@ -3181,7 +3181,7 @@ export class ${className}Agent {
             title: z.string(),
             source: z.string(),
             content: z.string()
-          }),
+          }) as z.ZodTypeAny,
           handler: async ({ title, source, content }: { title: string; source: string; content: string }) => {
             return await this.knowledgeTools.saveNote(title, source, content);
           }
@@ -3196,7 +3196,7 @@ export class ${className}Agent {
           parameters: z.object({
             query: z.string(),
             limit: z.number().optional()
-          }),
+          }) as z.ZodTypeAny,
           handler: async ({ query, limit = 5 }: { query: string; limit?: number }) => {
             return await this.knowledgeTools.searchLocal(query, limit);
           }
