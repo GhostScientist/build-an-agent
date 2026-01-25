@@ -3106,7 +3106,7 @@ export class ${className}Agent {
         description: 'Read the contents of a file',
         parameters: z.object({
           filePath: z.string().describe('Path to the file to read')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ filePath }: { filePath: string }) => {
           return await this.fileOps.readFile(filePath);
         }
@@ -3119,7 +3119,7 @@ export class ${className}Agent {
         parameters: z.object({
           filePath: z.string().describe('Path to the file to write'),
           content: z.string().describe('Content to write to the file')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ filePath, content }: { filePath: string; content: string }) => {
           await this.fileOps.writeFile(filePath, content);
           return \`Successfully wrote to \${filePath}\`;
@@ -3132,7 +3132,7 @@ export class ${className}Agent {
         description: 'Find files matching a glob pattern',
         parameters: z.object({
           pattern: z.string().describe('Glob pattern to match files (e.g., "**/*.ts")')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ pattern }: { pattern: string }) => {
           const files = await this.fileOps.findFiles(pattern);
           return files.join('\\n');
@@ -3146,7 +3146,7 @@ export class ${className}Agent {
         description: 'Execute a shell command',
         parameters: z.object({
           command: z.string().describe('Command to execute')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ command }: { command: string }) => {
           const result = await this.commandRunner.execute(command);
           return this.commandRunner.formatResult(result);
@@ -3160,7 +3160,7 @@ export class ${className}Agent {
         description: 'Fetch content from a URL',
         parameters: z.object({
           url: z.string().describe('URL to fetch')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ url }: { url: string }) => {
           return await this.webTools.fetch(url);
         }
@@ -3172,7 +3172,7 @@ export class ${className}Agent {
         description: 'Fetch and extract text content from a URL',
         parameters: z.object({
           url: z.string().describe('URL to fetch and extract text from')
-        }) as z.ZodTypeAny,
+        }) as any,
         handler: async ({ url }: { url: string }) => {
           return await this.webTools.fetchText(url);
         }
@@ -3188,7 +3188,7 @@ export class ${className}Agent {
           parameters: z.object({
             filePath: z.string().describe('Path to the document'),
             captureSources: z.boolean().optional().describe('Whether to capture source metadata')
-          }) as z.ZodTypeAny,
+          }) as any,
           handler: async ({ filePath, captureSources = true }: { filePath: string; captureSources?: boolean }) => {
             const result = await this.knowledgeTools.extractText(filePath, captureSources);
             return result.text;
@@ -3203,7 +3203,7 @@ export class ${className}Agent {
           description: 'Extract tables from documents into CSV/JSON',
           parameters: z.object({
             filePath: z.string().describe('Path to the document')
-          }) as z.ZodTypeAny,
+          }) as any,
           handler: async ({ filePath }: { filePath: string }) => {
             const result = await this.knowledgeTools.extractTables(filePath);
             if (result.tables.length === 0) return 'No tables found in document.';
@@ -3223,7 +3223,7 @@ export class ${className}Agent {
             title: z.string().describe('Title for the note'),
             source: z.string().describe('Source URL or path'),
             content: z.string().describe('Summary or quote')
-          }) as z.ZodTypeAny,
+          }) as any,
           handler: async ({ title, source, content }: { title: string; source: string; content: string }) => {
             return await this.knowledgeTools.saveNote(title, source, content);
           }
@@ -3238,7 +3238,7 @@ export class ${className}Agent {
           parameters: z.object({
             query: z.string().describe('Search query'),
             limit: z.number().optional().describe('Max results')
-          }) as z.ZodTypeAny,
+          }) as any,
           handler: async ({ query, limit = 5 }: { query: string; limit?: number }) => {
             return await this.knowledgeTools.searchLocal(query, limit);
           }
