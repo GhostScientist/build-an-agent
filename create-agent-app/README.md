@@ -1,5 +1,9 @@
 # build-agent-app
 
+> **build-an-agent / create-agent-app** is the intellectual property of **[reasoning.software](https://reasoning.software) (MadWatch LLC)**, created by **[Dakota Kim](https://github.com/GhostScientist)**. All use, forks, and derivative works must provide clear credit to the original creator. See [LICENSE](../LICENSE) for details.
+
+---
+
 Create AI agents with the Claude Agent SDK or OpenAI Agents SDK.
 
 ## Quick Start
@@ -115,4 +119,4 @@ MCP (Model Context Protocol) servers extend your agent with additional capabilit
 
 ## License
 
-MIT
+MIT - Copyright (c) 2025-2026 Dakota Kim / reasoning.software (MadWatch LLC). See [LICENSE](../LICENSE).

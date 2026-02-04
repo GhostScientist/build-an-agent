@@ -1,5 +1,9 @@
 # Agent Workshop
 
+> **build-an-agent / create-agent-app** is the intellectual property of **[reasoning.software](https://reasoning.software) (MadWatch LLC)**, created by **[Dakota Kim](https://github.com/GhostScientist)**. All use, forks, and derivative works must provide clear credit to the original creator. See [LICENSE](./LICENSE) for details.
+
+---
+
 Build custom AI agents with the Claude Agent SDK or OpenAI Agents SDK. Choose your approach:
 
 - **[Web UI](./agent-workshop-app)** - Visual builder with live code preview
@@ -67,4 +71,4 @@ Full documentation is available in the web UI at `/docs` or see the [agent-works
 
 ## License
 
-MIT
+MIT - Copyright (c) 2025-2026 Dakota Kim / reasoning.software (MadWatch LLC). See [LICENSE](./LICENSE).

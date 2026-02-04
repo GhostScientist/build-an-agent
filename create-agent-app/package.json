@@ -1,6 +1,6 @@
 {
   "name": "build-agent-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create AI agents with the Claude Agent SDK or OpenAI Agents SDK",
   "author": "Dakota Kim",
   "license": "MIT",

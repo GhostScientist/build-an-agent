@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'Agent Workshop - Build AI Agents in Minutes',
   description: 'Transform your ideas into powerful AI agents. Choose your domain, configure tools, and download a complete agent project ready for deployment.',
   keywords: ['AI agents', 'Claude', 'OpenAI', 'agent builder', 'automation', 'no-code'],
-  authors: [{ name: 'Agent Workshop Team' }],
+  authors: [{ name: 'Dakota Kim / reasoning.software (MadWatch LLC)' }],
   openGraph: {
     title: 'Agent Workshop - Build AI Agents in Minutes',
     description: 'From idea to agent in minutes. Build specialized AI assistants for any domain.',

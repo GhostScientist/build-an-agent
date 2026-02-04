@@ -1,6 +1,9 @@
 MIT License
 
-Copyright (c) 2024 Agent Workshop Contributors
+Copyright (c) 2025-2026 Dakota Kim / reasoning.software (MadWatch LLC)
+
+build-an-agent and create-agent-app are the intellectual property of
+reasoning.software (MadWatch LLC), created by Dakota Kim.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9,8 +12,13 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+2. Any use, fork, or derivative work of this Software must provide clear and
+   prominent credit to Dakota Kim as the original creator, including a link to
+   the original repository (https://github.com/GhostScientist/build-an-agent)
+   where reasonably possible.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
