@@ -1,0 +1,94 @@
+Implement the following plan:
+
+# Plan: Add Eval-Specific Test Set
+
+## Overview
+
+Add generated test files for the eval-runner template so that when a user creates an eval-runner agent project, they get a working test suite out of the box. Uses **vitest** as the test framework. Tests cover the 4 most testable eval modules (pure logic / filesystem-only). Both the npm CLI (`create-agent-app`) and webapp (`agent-workshop-app`) generators get identical updates.
+
+## Files to Modify (4 files)
+
+| File | What Changes |
+|------|-------------|
+| `create-agent-app/src/generator/eval-generator.ts` | Add 5 new generator functions for test content |
+| `agent-workshop-app/src/lib/eval-generator.ts` | Identical additions (mirror of above) |
+| `create-agent-app/src/generator/webapp-generator.ts` | Import new functions, push test files, add vitest dep + scripts |
+| `agent-workshop-app/src/lib/generator.ts` | Same changes as above (different import syntax) |
+
+## Step 1: Add 5 generator functions to `eval-generator.ts` (both copies)
+
+Append these exported functions to the end of both eval-generator files:
+
+### `generateVitestConfig()` → `vitest.config.ts`
+- Node environment, `src/**/*.test.ts` include pattern
+- v8 coverage targeting `src/eval/**/*.ts`, excluding test files and handlers
+
+### `generateReportGeneratorTests()` → `src/eval/__tests__/report-generator.test.ts`
+Tests for the pure-function `ReportGenerator` class:
+- `generateJSON` — all-pass → `overallStatus: 'pass'`, mixed → `'mixed'`, all-fail → `'fail'`
+- Correct `totalDurationMs` and cost aggregation
+- Baseline comparison delta computation
+- `generateMarkdown` — correct headers, table structure, cost section
+
+### `generateTaskRegistryTests()` → `src/eval/__tests__/task-registry.test.ts`
+Tests for the in-memory `TaskRegistry`:
+- `register()` / `get()` / `has()` / `listTypes()` behavior
+- `createDefaultRegistry()` includes all 5 built-in handler types
+- Handler `execute()` returns error result when no command is provided (sync path, no subprocess needed)
+
+### `generateSpecParserTests()` → `src/eval/__tests__/spec-parser.test.ts`
+Tests for `SpecParser` using temp files (`fs.mkdtempSync`):
+- Parse valid YAML and JSON specs
+- Throws on non-existent file, unsupported extension
+- Validation rejects missing required fields, empty tasks, tasks without id/type
+
+### `generateResultsManagerTests()` → `src/eval/__tests__/results-manager.test.ts`
+Tests for `ResultsManager` using a temp base directory:
+- `createRun()` returns `run-*` id and creates subdirectories
+- Manifest and task result write/read roundtrips
+- `readManifest` / `readTaskResult` return null for missing entries
+- `readAllTaskResults` returns sorted array
+- `writeSummary` creates both `.json` and `.md` files
+- `listRuns` returns runs newest-first
+
+## Step 2: Wire test files into generator pipelines
+
+In both `webapp-generator.ts` and `generator.ts`:
+
+### 2a. Add imports
+Add the 5 new functions to the existing eval-generator import block (lines 3-14 in both files).
+
+### 2b. Push test files in the `if (domain === 'evaluation')` block
+After the `.eval-runs/.gitkeep` entry (line ~390/393), add `files.push()` calls for:
+- `vitest.config.ts`
+- `src/eval/__tests__/report-generator.test.ts`
+- `src/eval/__tests__/task-registry.test.ts`
+- `src/eval/__tests__/spec-parser.test.ts`
+- `src/eval/__tests__/results-manager.test.ts`
+
+## Step 3: Update package.json generation for eval projects
+
+In the `if (config.domain === 'evaluation')` block of `generatePackageJson()` (line ~514/517 in both files), add:
+
+```typescript
+packageData.devDependencies['vitest'] = '^3.0.0'
+packageData.scripts.test = 'vitest run'
+packageData.scripts['test:watch'] = 'vitest'
+packageData.scripts['test:coverage'] = 'vitest run --coverage'
+```
+
+This replaces the placeholder `"test": "node dist/cli.js --help"` with real test commands, only for eval projects.
+
+## What's NOT in scope
+- Tests for `eval-executor.ts` (heavy orchestrator, depends on everything)
+- Tests for `llm-judge-handler.ts` (requires Claude API)
+- Tests for `agent-eval-handler.ts` (requires Docker + Python)
+- Adding tests to non-eval domain templates
+
+## Verification
+1. Run the webapp dev server and create an eval-runner project — confirm the 5 test files + vitest config appear in the generated output
+2. Run `npx create-agent-app` CLI, select evaluation domain → eval-runner template, confirm same files appear
+3. In a generated project, run `npm install && npm test` to verify tests pass
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/dakotakim/.REDACTED.jsonl

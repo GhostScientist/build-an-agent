@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "5cd0e796a758",
+  "strategy": "manual-commit",
+  "branch": "eval-runner",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "agent-workshop-app/src/lib/eval-generator.ts",
+    "agent-workshop-app/src/lib/generator.ts",
+    "create-agent-app/src/generator/eval-generator.ts",
+    "create-agent-app/src/generator/webapp-generator.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5c/d0e796a758/0/metadata.json",
+      "transcript": "/5c/d0e796a758/0/full.jsonl",
+      "context": "/5c/d0e796a758/0/context.md",
+      "content_hash": "/5c/d0e796a758/0/content_hash.txt",
+      "prompt": "/5c/d0e796a758/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3376,
+    "cache_creation_tokens": 103169,
+    "cache_read_tokens": 2417440,
+    "output_tokens": 3419,
+    "api_call_count": 25
+  }
+}

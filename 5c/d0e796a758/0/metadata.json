@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "5cd0e796a758",
+  "session_id": "b84b3b6d-e6e5-4291-a04e-0dde2f989aae",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-10T17:52:03.486222Z",
+  "branch": "eval-runner",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "agent-workshop-app/src/lib/eval-generator.ts",
+    "agent-workshop-app/src/lib/generator.ts",
+    "create-agent-app/src/generator/eval-generator.ts",
+    "create-agent-app/src/generator/webapp-generator.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 3376,
+    "cache_creation_tokens": 103169,
+    "cache_read_tokens": 2417440,
+    "output_tokens": 3419,
+    "api_call_count": 25
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-10T17:52:03.276889Z",
+    "agent_lines": 902,
+    "human_added": 93,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 995,
+    "agent_percentage": 90.65326633165829
+  }
+}
