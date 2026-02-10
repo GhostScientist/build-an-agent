@@ -195,22 +195,6 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* IP Attribution Banner */}
-      <div className="bg-primary/5 border-b border-primary/20">
-        <div className="container mx-auto px-4 py-3 text-center">
-          <p className="text-sm font-medium text-foreground">
-            <strong>build-an-agent</strong> / <strong>create-agent-app</strong> is the intellectual property of{' '}
-            <a href="https://reasoning.software" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
-              reasoning.software
-            </a>{' '}
-            (MadWatch LLC), created by{' '}
-            <a href="https://github.com/GhostScientist" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
-              Dakota Kim
-            </a>
-          </p>
-        </div>
-      </div>
-
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-background">
         <div className="container mx-auto px-4 py-32">

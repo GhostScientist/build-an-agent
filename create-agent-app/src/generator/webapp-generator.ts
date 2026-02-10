@@ -11,6 +11,11 @@ import {
   generatePythonHarness,
   generateSampleEvalSpec,
   generateAgentEvalSpec,
+  generateVitestConfig,
+  generateReportGeneratorTests,
+  generateTaskRegistryTests,
+  generateSpecParserTests,
+  generateResultsManagerTests,
 } from './eval-generator.js';
 
 const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
@@ -391,6 +396,42 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
       type: 'shell',
       template: '.eval-runs/.gitkeep'
     })
+
+    // Vitest config and test files
+    files.push({
+      path: 'vitest.config.ts',
+      content: generateVitestConfig(),
+      type: 'typescript',
+      template: 'vitest.config.ts'
+    })
+
+    files.push({
+      path: 'src/eval/__tests__/report-generator.test.ts',
+      content: generateReportGeneratorTests(),
+      type: 'typescript',
+      template: 'src/eval/__tests__/report-generator.test.ts'
+    })
+
+    files.push({
+      path: 'src/eval/__tests__/task-registry.test.ts',
+      content: generateTaskRegistryTests(),
+      type: 'typescript',
+      template: 'src/eval/__tests__/task-registry.test.ts'
+    })
+
+    files.push({
+      path: 'src/eval/__tests__/spec-parser.test.ts',
+      content: generateSpecParserTests(),
+      type: 'typescript',
+      template: 'src/eval/__tests__/spec-parser.test.ts'
+    })
+
+    files.push({
+      path: 'src/eval/__tests__/results-manager.test.ts',
+      content: generateResultsManagerTests(),
+      type: 'typescript',
+      template: 'src/eval/__tests__/results-manager.test.ts'
+    })
   }
 
   // Claude Code configuration files (levers)
@@ -516,6 +557,10 @@ function generatePackageJson(config: AgentConfig): string {
   // Add eval-specific dev dependencies
   if (config.domain === 'evaluation') {
     packageData.devDependencies['@types/js-yaml'] = '^4.0.9'
+    packageData.devDependencies['vitest'] = '^3.0.0'
+    packageData.scripts.test = 'vitest run'
+    packageData.scripts['test:watch'] = 'vitest'
+    packageData.scripts['test:coverage'] = 'vitest run --coverage'
   }
 
   // Remove undefined fields

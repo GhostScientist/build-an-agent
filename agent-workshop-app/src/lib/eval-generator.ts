@@ -2251,3 +2251,409 @@ baselines:
   swe-agent: 0.42
 `;
 }
+
+export function generateVitestConfig(): string {
+  return `import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/eval/**/*.ts'],
+      exclude: ['src/eval/**/*.test.ts', 'src/eval/handlers/**'],
+    },
+  },
+});
+`;
+}
+
+export function generateReportGeneratorTests(): string {
+  return `import { describe, it, expect } from 'vitest';
+import { ReportGenerator } from '../report-generator.js';
+
+describe('ReportGenerator', () => {
+  const generator = new ReportGenerator();
+
+  function makeManifest(overrides: Record<string, any> = {}) {
+    return {
+      runId: 'run-test-001',
+      specName: 'test-spec',
+      completedAt: '2025-01-01T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  function makeResult(overrides: Record<string, any> = {}) {
+    return {
+      taskId: 'task-1',
+      type: 'test',
+      status: 'pass' as const,
+      startedAt: '2025-01-01T00:00:00.000Z',
+      completedAt: '2025-01-01T00:00:01.000Z',
+      durationMs: 1000,
+      metrics: {},
+      criteria: {},
+      ...overrides,
+    };
+  }
+
+  describe('generateJSON', () => {
+    it('returns pass when all tasks pass', () => {
+      const results = [makeResult(), makeResult({ taskId: 'task-2' })];
+      const summary = generator.generateJSON(makeManifest(), results);
+      expect(summary.overallStatus).toBe('pass');
+      expect(summary.passCount).toBe(2);
+      expect(summary.failCount).toBe(0);
+    });
+
+    it('returns mixed when some pass and some fail', () => {
+      const results = [
+        makeResult(),
+        makeResult({ taskId: 'task-2', status: 'fail' }),
+      ];
+      const summary = generator.generateJSON(makeManifest(), results);
+      expect(summary.overallStatus).toBe('mixed');
+    });
+
+    it('returns fail when all tasks fail', () => {
+      const results = [
+        makeResult({ status: 'fail' }),
+        makeResult({ taskId: 'task-2', status: 'error' }),
+      ];
+      const summary = generator.generateJSON(makeManifest(), results);
+      expect(summary.overallStatus).toBe('fail');
+    });
+
+    it('computes totalDurationMs correctly', () => {
+      const results = [
+        makeResult({ durationMs: 1500 }),
+        makeResult({ taskId: 'task-2', durationMs: 2500 }),
+      ];
+      const summary = generator.generateJSON(makeManifest(), results);
+      expect(summary.totalDurationMs).toBe(4000);
+    });
+
+    it('aggregates cost across tasks', () => {
+      const results = [
+        makeResult({ estimatedCost: { amount: 0.05, currency: 'USD' } }),
+        makeResult({ taskId: 'task-2', estimatedCost: { amount: 0.10, currency: 'USD' } }),
+      ];
+      const summary = generator.generateJSON(makeManifest(), results);
+      expect(summary.totalCost.amount).toBeCloseTo(0.15);
+      expect(summary.totalCost.breakdown['task-1']).toBeCloseTo(0.05);
+      expect(summary.totalCost.breakdown['task-2']).toBeCloseTo(0.10);
+    });
+
+    it('computes baseline comparison deltas', () => {
+      const results = [makeResult(), makeResult({ taskId: 'task-2' })];
+      const baselines = { 'baseline-a': 0.8 };
+      const summary = generator.generateJSON(makeManifest(), results, baselines);
+      expect(summary.baselineComparison).toBeDefined();
+      expect(summary.baselineComparison['baseline-a'].baseline).toBe(0.8);
+      // 2 pass out of 2 → actual = 1.0, delta = 0.2
+      expect(summary.baselineComparison['baseline-a'].actual).toBe(1.0);
+      expect(summary.baselineComparison['baseline-a'].delta).toBeCloseTo(0.2);
+    });
+  });
+
+  describe('generateMarkdown', () => {
+    it('includes report header and summary table', () => {
+      const results = [makeResult()];
+      const md = generator.generateMarkdown(makeManifest(), results);
+      expect(md).toContain('# Eval Report: test-spec');
+      expect(md).toContain('**Run ID:** run-test-001');
+      expect(md).toContain('## Summary');
+      expect(md).toContain('| Metric | Value |');
+    });
+
+    it('includes tasks table with correct columns', () => {
+      const results = [makeResult()];
+      const md = generator.generateMarkdown(makeManifest(), results);
+      expect(md).toContain('## Tasks');
+      expect(md).toContain('| Task | Type | Status | Duration | Cost |');
+    });
+
+    it('includes cost breakdown when costs exist', () => {
+      const results = [
+        makeResult({ estimatedCost: { amount: 0.05, currency: 'USD' } }),
+      ];
+      const md = generator.generateMarkdown(makeManifest(), results);
+      expect(md).toContain('## Cost Breakdown');
+    });
+  });
+});
+`;
+}
+
+export function generateTaskRegistryTests(): string {
+  return `import { describe, it, expect } from 'vitest';
+import {
+  TaskRegistry,
+  createDefaultRegistry,
+  BuildHandler,
+} from '../task-registry.js';
+
+describe('TaskRegistry', () => {
+  it('register and get a handler', () => {
+    const registry = new TaskRegistry();
+    const handler = new BuildHandler();
+    registry.register(handler);
+
+    expect(registry.get('build')).toBe(handler);
+  });
+
+  it('returns undefined for unknown type', () => {
+    const registry = new TaskRegistry();
+    expect(registry.get('nonexistent')).toBeUndefined();
+  });
+
+  it('has() returns correct boolean', () => {
+    const registry = new TaskRegistry();
+    registry.register(new BuildHandler());
+    expect(registry.has('build')).toBe(true);
+    expect(registry.has('nonexistent')).toBe(false);
+  });
+
+  it('listTypes() returns registered types', () => {
+    const registry = new TaskRegistry();
+    registry.register(new BuildHandler());
+    const types = registry.listTypes();
+    expect(types).toContain('build');
+  });
+});
+
+describe('createDefaultRegistry', () => {
+  it('includes all 5 built-in handler types', () => {
+    const registry = createDefaultRegistry();
+    const types = registry.listTypes();
+    expect(types).toContain('build');
+    expect(types).toContain('test');
+    expect(types).toContain('lint');
+    expect(types).toContain('security');
+    expect(types).toContain('custom');
+  });
+});
+
+describe('BuildHandler.execute', () => {
+  it('returns error when no command is provided', async () => {
+    const handler = new BuildHandler();
+    const task = { id: 'test-task', type: 'build' };
+    const ctx = {
+      runId: 'run-1',
+      targetDir: '/tmp',
+      workingDir: '/tmp',
+      verbose: false,
+    };
+    const result = await handler.execute(task, ctx);
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('No command specified');
+  });
+});
+`;
+}
+
+export function generateSpecParserTests(): string {
+  return `import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { SpecParser } from '../spec-parser.js';
+
+describe('SpecParser', () => {
+  let tmpDir: string;
+  let parser: SpecParser;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-parser-'));
+    parser = new SpecParser();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const validSpec = {
+    name: 'test-eval',
+    version: '1.0',
+    target: { repo: './repo' },
+    tasks: [
+      { id: 'build', type: 'build', command: 'npm run build' },
+    ],
+  };
+
+  it('parses a valid YAML spec', () => {
+    const filePath = path.join(tmpDir, 'spec.yaml');
+    const yaml = \`name: "test-eval"
+version: "1.0"
+target:
+  repo: "./repo"
+tasks:
+  - id: build
+    type: build
+    command: "npm run build"
+\`;
+    fs.writeFileSync(filePath, yaml);
+    const spec = parser.parse(filePath);
+    expect(spec.name).toBe('test-eval');
+    expect(spec.version).toBe('1.0');
+    expect(spec.tasks).toHaveLength(1);
+    expect(spec.tasks[0].id).toBe('build');
+  });
+
+  it('parses a valid JSON spec', () => {
+    const filePath = path.join(tmpDir, 'spec.json');
+    fs.writeFileSync(filePath, JSON.stringify(validSpec));
+    const spec = parser.parse(filePath);
+    expect(spec.name).toBe('test-eval');
+    expect(spec.tasks).toHaveLength(1);
+  });
+
+  it('throws on non-existent file', () => {
+    expect(() => parser.parse('/nonexistent/spec.yaml')).toThrow('Spec file not found');
+  });
+
+  it('throws on unsupported extension', () => {
+    const filePath = path.join(tmpDir, 'spec.txt');
+    fs.writeFileSync(filePath, 'hello');
+    expect(() => parser.parse(filePath)).toThrow('Unsupported spec format');
+  });
+
+  it('rejects spec missing required name field', () => {
+    const filePath = path.join(tmpDir, 'bad.json');
+    fs.writeFileSync(filePath, JSON.stringify({ version: '1.0', target: {}, tasks: [{ id: 'a', type: 'b' }] }));
+    expect(() => parser.parse(filePath)).toThrow('"name"');
+  });
+
+  it('rejects spec with empty tasks array', () => {
+    const filePath = path.join(tmpDir, 'empty-tasks.json');
+    fs.writeFileSync(filePath, JSON.stringify({ name: 'x', version: '1.0', target: {}, tasks: [] }));
+    expect(() => parser.parse(filePath)).toThrow('tasks');
+  });
+
+  it('rejects task without id', () => {
+    const filePath = path.join(tmpDir, 'no-id.json');
+    fs.writeFileSync(filePath, JSON.stringify({ name: 'x', version: '1.0', target: {}, tasks: [{ type: 'build' }] }));
+    expect(() => parser.parse(filePath)).toThrow('"id"');
+  });
+
+  it('rejects task without type', () => {
+    const filePath = path.join(tmpDir, 'no-type.json');
+    fs.writeFileSync(filePath, JSON.stringify({ name: 'x', version: '1.0', target: {}, tasks: [{ id: 'a' }] }));
+    expect(() => parser.parse(filePath)).toThrow('"type"');
+  });
+});
+`;
+}
+
+export function generateResultsManagerTests(): string {
+  return `import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { ResultsManager } from '../results-manager.js';
+
+describe('ResultsManager', () => {
+  let tmpDir: string;
+  let manager: ResultsManager;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'results-mgr-'));
+    manager = new ResultsManager(tmpDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  describe('createRun', () => {
+    it('returns an id starting with run-', () => {
+      const id = manager.createRun();
+      expect(id).toMatch(/^run-/);
+    });
+
+    it('creates tasks and predictions subdirectories', () => {
+      const id = manager.createRun();
+      const runDir = path.join(tmpDir, id);
+      expect(fs.existsSync(path.join(runDir, 'tasks'))).toBe(true);
+      expect(fs.existsSync(path.join(runDir, 'predictions'))).toBe(true);
+    });
+  });
+
+  describe('manifest read/write', () => {
+    it('roundtrips manifest data', () => {
+      const id = manager.createRun();
+      const manifest = { runId: id, specName: 'test', status: 'initialized' };
+      manager.writeManifest(id, manifest);
+      const read = manager.readManifest(id);
+      expect(read).toEqual(manifest);
+    });
+
+    it('returns null for missing manifest', () => {
+      expect(manager.readManifest('nonexistent-run')).toBeNull();
+    });
+  });
+
+  describe('task result read/write', () => {
+    it('roundtrips task result data', () => {
+      const id = manager.createRun();
+      const result = { taskId: 'build', status: 'pass', durationMs: 100 };
+      manager.writeTaskResult(id, 'build', result);
+      const read = manager.readTaskResult(id, 'build');
+      expect(read).toEqual(result);
+    });
+
+    it('returns null for missing task result', () => {
+      const id = manager.createRun();
+      expect(manager.readTaskResult(id, 'nonexistent')).toBeNull();
+    });
+  });
+
+  describe('readAllTaskResults', () => {
+    it('returns results sorted by taskId', () => {
+      const id = manager.createRun();
+      manager.writeTaskResult(id, 'zeta', { taskId: 'zeta', status: 'pass' });
+      manager.writeTaskResult(id, 'alpha', { taskId: 'alpha', status: 'fail' });
+      manager.writeTaskResult(id, 'mid', { taskId: 'mid', status: 'pass' });
+
+      const all = manager.readAllTaskResults(id);
+      expect(all).toHaveLength(3);
+      expect(all[0].taskId).toBe('alpha');
+      expect(all[1].taskId).toBe('mid');
+      expect(all[2].taskId).toBe('zeta');
+    });
+  });
+
+  describe('writeSummary', () => {
+    it('creates both summary.json and summary.md', () => {
+      const id = manager.createRun();
+      manager.writeSummary(id, { overall: 'pass' }, '# Report');
+      const dir = path.join(tmpDir, id);
+      expect(fs.existsSync(path.join(dir, 'summary.json'))).toBe(true);
+      expect(fs.existsSync(path.join(dir, 'summary.md'))).toBe(true);
+
+      const json = JSON.parse(fs.readFileSync(path.join(dir, 'summary.json'), 'utf-8'));
+      expect(json.overall).toBe('pass');
+
+      const md = fs.readFileSync(path.join(dir, 'summary.md'), 'utf-8');
+      expect(md).toBe('# Report');
+    });
+  });
+
+  describe('listRuns', () => {
+    it('returns runs newest-first', () => {
+      // Create runs with slightly different names to ensure ordering
+      const id1 = manager.createRun();
+      const id2 = manager.createRun();
+
+      const runs = manager.listRuns();
+      expect(runs.length).toBeGreaterThanOrEqual(2);
+      // Newest first (lexicographic reverse)
+      const ids = runs.map(r => r.runId);
+      expect(ids.indexOf(id2)).toBeLessThan(ids.indexOf(id1));
+    });
+  });
+});
+`;
+}
