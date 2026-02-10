@@ -261,6 +261,24 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     codeTemplates: {},
     documentation: 'Expert at building ML data pipelines, feature engineering, model training workflows, and implementing MLOps best practices.',
   },
+  // Evaluation Domain Templates
+  {
+    id: 'eval-runner-agent',
+    name: 'Eval Runner Agent',
+    description: 'Run structured eval pipelines (build, test, lint, security, LLM-judge, agent-eval) against codebases and produce machine-readable results.',
+    domain: 'evaluation',
+    icon: 'ChartBarIcon',
+    gradient: 'from-indigo-500 to-violet-600',
+    defaultTools: ['read-file', 'find-files', 'search-files', 'write-file', 'run-command', 'git-operations'],
+    samplePrompts: [
+      'Initialize an eval run from eval-specs/sample-eval.yaml',
+      'Run all eval tasks against the target codebase',
+      'Generate a summary report for the latest eval run',
+      'Compare the last two eval runs and highlight regressions'
+    ],
+    codeTemplates: {},
+    documentation: 'Deterministic evaluation orchestrator that runs structured eval pipelines against codebases. Supports build/test/lint/security checks, LLM-as-judge scoring with cost tracking, and SWE-bench-style agent evaluations via Python/Docker subprocesses. Produces machine-readable JSON results and Markdown reports.',
+  },
 ];
 
 export function getTemplatesForDomain(domain: string): AgentTemplate[] {

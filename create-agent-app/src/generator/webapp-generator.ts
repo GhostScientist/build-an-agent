@@ -1,5 +1,17 @@
 import type { AgentConfig, GeneratedProject, GeneratedFile, ProjectMetadata, AgentTemplate } from '../types.js';
 import { AGENT_TEMPLATES } from '../data/agent-templates.js';
+import {
+  generateEvalExecutor,
+  generateTaskRegistry,
+  generateResultsManager,
+  generateSpecParser,
+  generateReportGenerator,
+  generateLLMJudgeHandler,
+  generateAgentEvalHandler,
+  generatePythonHarness,
+  generateSampleEvalSpec,
+  generateAgentEvalSpec,
+} from './eval-generator.js';
 
 const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
 
@@ -299,6 +311,88 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     })
   }
 
+  // Evaluation domain files
+  if (domain === 'evaluation') {
+    // Core eval modules
+    files.push({
+      path: 'src/eval/eval-executor.ts',
+      content: generateEvalExecutor(),
+      type: 'typescript',
+      template: 'src/eval/eval-executor.ts'
+    })
+    files.push({
+      path: 'src/eval/task-registry.ts',
+      content: generateTaskRegistry(),
+      type: 'typescript',
+      template: 'src/eval/task-registry.ts'
+    })
+    files.push({
+      path: 'src/eval/results-manager.ts',
+      content: generateResultsManager(),
+      type: 'typescript',
+      template: 'src/eval/results-manager.ts'
+    })
+    files.push({
+      path: 'src/eval/spec-parser.ts',
+      content: generateSpecParser(),
+      type: 'typescript',
+      template: 'src/eval/spec-parser.ts'
+    })
+    files.push({
+      path: 'src/eval/report-generator.ts',
+      content: generateReportGenerator(),
+      type: 'typescript',
+      template: 'src/eval/report-generator.ts'
+    })
+
+    // Handlers
+    files.push({
+      path: 'src/eval/handlers/llm-judge-handler.ts',
+      content: generateLLMJudgeHandler(),
+      type: 'typescript',
+      template: 'src/eval/handlers/llm-judge-handler.ts'
+    })
+    files.push({
+      path: 'src/eval/handlers/agent-eval-handler.ts',
+      content: generateAgentEvalHandler(),
+      type: 'typescript',
+      template: 'src/eval/handlers/agent-eval-handler.ts'
+    })
+
+    // Python harness
+    const harness = generatePythonHarness()
+    for (const file of harness.files) {
+      files.push({
+        path: file.path,
+        content: file.content,
+        type: file.path.endsWith('.py') ? 'typescript' : file.path.endsWith('.txt') ? 'shell' : 'shell',
+        template: file.path
+      })
+    }
+
+    // Sample eval specs
+    files.push({
+      path: 'eval-specs/sample-eval.yaml',
+      content: generateSampleEvalSpec(),
+      type: 'yaml',
+      template: 'eval-specs/sample-eval.yaml'
+    })
+    files.push({
+      path: 'eval-specs/swe-bench-sample.yaml',
+      content: generateAgentEvalSpec(),
+      type: 'yaml',
+      template: 'eval-specs/swe-bench-sample.yaml'
+    })
+
+    // Eval runs directory
+    files.push({
+      path: '.eval-runs/.gitkeep',
+      content: '# This directory stores eval run results\n',
+      type: 'shell',
+      template: '.eval-runs/.gitkeep'
+    })
+  }
+
   // Claude Code configuration files (levers)
   const claudeCodeFiles = generateClaudeCodeFiles(config)
   files.push(...claudeCodeFiles)
@@ -419,6 +513,11 @@ function generatePackageJson(config: AgentConfig): string {
     }
   }
 
+  // Add eval-specific dev dependencies
+  if (config.domain === 'evaluation') {
+    packageData.devDependencies['@types/js-yaml'] = '^4.0.9'
+  }
+
   // Remove undefined fields
   Object.keys(packageData).forEach(key => {
     if (packageData[key] === undefined) {
@@ -476,7 +575,14 @@ function getDependencies(config: AgentConfig): Record<string, string> {
     baseDeps['pdf-parse'] = '^1.1.1'
     baseDeps['mammoth'] = '^1.7.2'
   }
-  
+
+  // Evaluation domain dependencies
+  if (config.domain === 'evaluation') {
+    baseDeps['js-yaml'] = '^4.1.0'
+    baseDeps['@anthropic-ai/sdk'] = '^0.39.0'
+    baseDeps['glob'] = '^10.3.10'
+  }
+
   return baseDeps
 }
 
@@ -815,7 +921,12 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
     { name: 'blog-outline', description: 'Create SEO-optimized blog post outline' },
     { name: 'campaign-brief', description: 'Generate multi-channel marketing campaign brief' },` : ''}${config.domain === 'data' ? `
     { name: 'dataset-profile', description: 'Analyze dataset with statistical profile' },
-    { name: 'chart-report', description: 'Generate visualization report with insights' },` : ''}${isDARE ? `
+    { name: 'chart-report', description: 'Generate visualization report with insights' },` : ''}${config.domain === 'evaluation' ? `
+    { name: 'eval-init', description: 'Initialize eval run from a spec file' },
+    { name: 'eval-run', description: 'Run eval tasks' },
+    { name: 'eval-report', description: 'Generate eval report' },
+    { name: 'eval-compare', description: 'Compare two eval runs' },
+    { name: 'eval-history', description: 'Show eval run history' },` : ''}${isDARE ? `
     { name: 'dare-status', description: 'Show DARE project status' },
     { name: 'dare-discover', description: 'Start Discovery phase' },
     { name: 'dare-assess', description: 'Start Assessment phase' },
@@ -930,7 +1041,13 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
         console.log(chalk.gray('• /dataset-profile --data <file> [--output <path>]'));
         console.log(chalk.gray('  Analyze dataset with statistical profile'));
         console.log(chalk.gray('• /chart-report --data <file> [--focus <analysis_type>]'));
-        console.log(chalk.gray('  Generate visualization report with insights'));` : ''}${isDARE ? `
+        console.log(chalk.gray('  Generate visualization report with insights'));` : ''}${config.domain === 'evaluation' ? `
+        console.log(chalk.gray('\\n📊 Eval Commands:'));
+        console.log(chalk.gray('• /eval-init <spec-file> - Initialize eval run from spec'));
+        console.log(chalk.gray('• /eval-run [run-id|spec-file] - Run eval tasks'));
+        console.log(chalk.gray('• /eval-report [run-id] - Generate eval report'));
+        console.log(chalk.gray('• /eval-compare <run-id-1> <run-id-2> - Compare two runs'));
+        console.log(chalk.gray('• /eval-history [--spec <name>] [--limit <n>] - Show run history'));` : ''}${isDARE ? `
         console.log(chalk.gray('\\n🎯 DARE Methodology Commands:'));
         console.log(chalk.gray('• /dare-status - Show DARE project status'));
         console.log(chalk.gray('• /dare-discover --target <path> - Start Discovery phase'));
@@ -1034,7 +1151,53 @@ async function handleInteractiveMode(agent: any, permissionManager: PermissionMa
       if (input === '/skill-list') {
         handleSkillList();
         continue;
-      }${isDARE ? `
+      }${config.domain === 'evaluation' ? `
+
+      // Handle eval commands
+      if (input.startsWith('/eval-')) {
+        const { command, args, error } = parseSlashCommand(input);
+        if (error) {
+          console.log(chalk.red(\`Error: \${error}\`));
+          continue;
+        }
+
+        const { EvalExecutor } = await import('./eval/eval-executor.js');
+        const evalExecutor = new EvalExecutor({ verbose: verbose || false, apiKey: agent.config?.apiKey });
+
+        try {
+          if (command === 'eval-init') {
+            const specFile = Object.keys(args).find(k => k !== 'true') || args._?.[0];
+            // The first positional arg is the spec path
+            const inputAfterCommand = input.slice('/eval-init '.length).trim();
+            const specPath = inputAfterCommand.split(/\\s+/)[0];
+            if (!specPath) {
+              console.log(chalk.yellow('Usage: /eval-init <spec-file>'));
+            } else {
+              await evalExecutor.init(specPath);
+            }
+          } else if (command === 'eval-run') {
+            const inputAfterCommand = input.slice('/eval-run'.length).trim();
+            await evalExecutor.run(inputAfterCommand || undefined);
+          } else if (command === 'eval-report') {
+            const inputAfterCommand = input.slice('/eval-report'.length).trim();
+            await evalExecutor.report(inputAfterCommand || undefined);
+          } else if (command === 'eval-compare') {
+            const parts = input.slice('/eval-compare'.length).trim().split(/\\s+/);
+            if (parts.length < 2) {
+              console.log(chalk.yellow('Usage: /eval-compare <run-id-1> <run-id-2>'));
+            } else {
+              await evalExecutor.compare(parts[0], parts[1]);
+            }
+          } else if (command === 'eval-history') {
+            await evalExecutor.history({ spec: args.spec as string, limit: args.limit as number });
+          } else {
+            console.log(chalk.yellow(\`Unknown eval command: /\${command}\`));
+          }
+        } catch (error) {
+          console.error(chalk.red('Eval error:'), error instanceof Error ? error.message : String(error));
+        }
+        continue;
+      }` : ''}${isDARE ? `
 
       // Handle DARE commands
       if (input.startsWith('/dare-')) {
@@ -2407,7 +2570,7 @@ export class ${className}Agent {
 ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
 
 \${skillsSection}\${subagentsSection}\${commandsSection}## Instructions:
-${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}${config.domain === 'evaluation' ? `\n\n## Eval Runner Capabilities:\nYou are an evaluation orchestrator. Use these commands:\n- /eval-init <spec.yaml> — Initialize an eval run from a YAML/JSON spec\n- /eval-run [run-id] — Execute all tasks in an eval run\n- /eval-report [run-id] — Generate summary report (JSON + Markdown)\n- /eval-compare <id1> <id2> — Compare two runs, highlight regressions\n- /eval-history — List past eval runs with status and cost\n\nSupported task types: build, test, lint, security, custom, llm-judge, agent-eval.\nResults are stored in .eval-runs/ with per-task JSON and aggregated summaries.\nLLM-judge and agent-eval tasks track token usage and estimated cost.` : ''}
 
 Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
   }${hasFileOps ? `

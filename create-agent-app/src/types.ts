@@ -1,6 +1,6 @@
 // Types matching the web app's agent.ts for generator compatibility
 
-export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge';
+export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge' | 'evaluation';
 
 export type SDKProvider = 'claude' | 'openai' | 'huggingface';
 

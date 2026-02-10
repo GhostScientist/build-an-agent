@@ -5,7 +5,8 @@ import {
   CodeBracketIcon,
   CogIcon,
   RocketLaunchIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  BeakerIcon
 } from '@heroicons/react/24/outline'
 import { AgentConfig, AgentDomain } from '@/types/agent'
 
@@ -85,6 +86,20 @@ const domains = [
       'Statistical analysis and reporting'
     ],
     tools: ['Data Processing', 'SQL Queries', 'Visualization', 'ML Tools', 'Statistical Analysis']
+  },
+  {
+    id: 'evaluation' as AgentDomain,
+    name: 'Evaluation',
+    description: 'Structured eval pipelines, benchmarks, LLM-as-judge scoring, and codebase measurement.',
+    icon: BeakerIcon,
+    gradient: 'from-indigo-500 to-violet-600',
+    examples: [
+      'Run build/test/lint eval pipelines',
+      'LLM-as-judge code quality scoring',
+      'SWE-bench-style agent evaluations',
+      'Compare eval runs and track regressions'
+    ],
+    tools: ['Spec Parsing', 'Task Registry', 'LLM Judge', 'Agent Eval', 'Results & Reporting']
   }
 ]
 

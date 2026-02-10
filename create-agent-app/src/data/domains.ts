@@ -26,4 +26,9 @@ export const DOMAINS: DomainChoice[] = [
     name: 'Knowledge',
     hint: 'Research, literature review, citations',
   },
+  {
+    value: 'evaluation',
+    name: 'Evaluation',
+    hint: 'Eval pipelines, benchmarks, codebase measurement',
+  },
 ];
