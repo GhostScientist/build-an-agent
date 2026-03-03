@@ -195,6 +195,22 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* IP Attribution Banner */}
+      <div className="bg-primary/5 border-b border-primary/20">
+        <div className="container mx-auto px-4 py-3 text-center">
+          <p className="text-sm font-medium text-foreground">
+            <strong>build-an-agent</strong> / <strong>create-agent-app</strong> is the intellectual property of{' '}
+            <a href="https://reasoning.software" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
+              reasoning.software
+            </a>{' '}
+            (MadWatch LLC), created by{' '}
+            <a href="https://github.com/GhostScientist" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
+              Dakota Kim
+            </a>
+          </p>
+        </div>
+      </div>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-background">
         <div className="container mx-auto px-4 py-32">
@@ -236,6 +252,13 @@ export default function HomePage() {
               <div className="badge-outline px-4 py-2 text-sm font-medium bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                 <img src="/OpenAI-black-monoblossom.svg" alt="OpenAI" className="w-4 h-4" />
                 OpenAI Agents SDK
+              </div>
+              <div className="badge-outline px-4 py-2 text-sm font-medium bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center gap-2 relative">
+                <span className="text-base">🤗</span>
+                HuggingFace Tiny Agents
+                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-yellow-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 shadow-sm">
+                  ✨ NEW
+                </span>
               </div>
             </motion.div>
             
@@ -453,28 +476,51 @@ export default function HomePage() {
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Generated agents include sophisticated slash command workflows for multi-step operations.
-              Built on Claude Agent SDK and OpenAI Agents API with MCP tools, streaming, and configurable security.
+              Built on Claude Agent SDK, OpenAI Agents API, and HuggingFace Tiny Agents with MCP tools, streaming, and configurable security.
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
-                className="card p-6 text-center hover:shadow-md transition-all duration-200"
+                className="card p-6 text-center hover:shadow-md transition-all duration-200 relative"
               >
-                <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
+                {feature.isNew && (
+                  <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-yellow-400 text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5 shadow-sm">
+                    ✨ NEW
+                  </span>
+                )}
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 ${
+                  feature.providers?.includes('huggingface') ? 'bg-amber-500' : 'bg-primary'
+                }`}>
                   <feature.icon className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <h4 className="text-lg font-semibold mb-2">
                   {feature.title}
                 </h4>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mb-3">
                   {feature.description}
                 </p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {feature.providers?.map(provider => (
+                    <span
+                      key={provider}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        provider === 'claude'
+                          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                          : provider === 'openai'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}
+                    >
+                      {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : '🤗 Tiny Agents'}
+                    </span>
+                  ))}
+                </div>
               </motion.div>
             ))}
           </div>
@@ -852,19 +898,31 @@ export default function HomePage() {
             <p className="text-primary-foreground/80 mb-4">
               Free, open-source tool for generating AI agent CLIs
             </p>
+            <p className="text-primary-foreground/80 mb-2">
+              Intellectual property of{' '}
+              <a
+                href="https://reasoning.software"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold hover:text-primary-foreground"
+              >
+                reasoning.software
+              </a>{' '}
+              (MadWatch LLC)
+            </p>
             <p className="text-primary-foreground/80 mb-6">
-              Built by{' '}
+              Created by{' '}
               <a
                 href="https://github.com/GhostScientist"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-primary-foreground"
+                className="underline font-semibold hover:text-primary-foreground"
               >
                 Dakota Kim
               </a>
             </p>
             <p className="text-primary-foreground/60 text-sm">
-              © {new Date().getFullYear()} Build-An-Agent Workshop. Made with ❤️ for the AI community.
+              © 2025-{new Date().getFullYear()} Dakota Kim / reasoning.software (MadWatch LLC). MIT License.
             </p>
           </div>
         </div>
@@ -878,16 +936,26 @@ const features = [
     title: 'Multi-Step Workflows',
     description: 'Domain-specific slash commands like /literature-review, /code-audit, /invoice-batch orchestrate complex multi-step processes. Template variables, retry logic, and error handling built-in.',
     icon: CodeBracketIcon,
+    providers: ['claude', 'openai'],
   },
   {
     title: 'Configurable Security',
     description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
     icon: CogIcon,
+    providers: ['claude', 'openai'],
   },
   {
     title: 'SDK-Native & Customizable',
-    description: 'Built on official Claude Agent SDK and OpenAI Agents API with MCP tool integration. Download complete TypeScript source. Modify prompts, add tools, or extend workflows from day one.',
+    description: 'Download complete TypeScript source code. Full control over prompts, tools, and workflows. Extend with custom business logic from day one.',
     icon: RocketLaunchIcon,
+    providers: ['claude', 'openai'],
+  },
+  {
+    title: 'Zero-Build Tiny Agents',
+    description: 'Create lightweight agents with just JSON + markdown. No build step, no dependencies. Run instantly with npx, share to the HuggingFace community, and use powerful open-source models.',
+    icon: SparklesIcon,
+    providers: ['huggingface'],
+    isNew: true,
   },
 ]
 

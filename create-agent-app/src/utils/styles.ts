@@ -28,10 +28,10 @@ export const styles = {
 
 export function printHeader(): void {
   console.log();
-  console.log(styles.brand('   ╔═══════════════════════════════════════╗'));
-  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI               ') + styles.brand('║'));
-  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI') + styles.brand('║'));
-  console.log(styles.brand('   ╚═══════════════════════════════════════╝'));
+  console.log(styles.brand('   ╔════════════════════════════════════════════════╗'));
+  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI                        ') + styles.brand('║'));
+  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI/HF  ') + styles.brand('║'));
+  console.log(styles.brand('   ╚════════════════════════════════════════════════╝'));
   console.log();
 }
 
@@ -41,17 +41,45 @@ export function printSuccess(projectName: string, provider: string): void {
   console.log();
   console.log(styles.dim('   Next steps:'));
   console.log();
-  console.log(`   ${styles.highlight('cd')} ${projectName}`);
-  console.log(`   ${styles.highlight('cp')} .env.example .env`);
 
-  const envVar = provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
-  console.log(styles.dim(`   # Add your ${envVar} to .env`));
+  // HuggingFace uses lightweight config - different flow
+  if (provider === 'huggingface') {
+    console.log(`   ${styles.highlight('export')} HF_TOKEN="hf_your_token_here"`);
+    console.log(`   ${styles.highlight('npx')} @huggingface/tiny-agents run ./${projectName}`);
+    console.log();
+    console.log(styles.dim('   This is a lightweight tiny-agent config (no build step needed!)'));
+    console.log(styles.dim(`   → Configure MCP servers in ${projectName}/agent.json`));
+    console.log(styles.dim(`   → Customize the prompt in ${projectName}/PROMPT.md`));
+    console.log();
+    console.log(styles.dim('   To contribute to tiny-agents:'));
+    console.log(styles.dim('   → Go to https://huggingface.co/datasets/tiny-agents/tiny-agents'));
+    console.log(styles.dim('   → Click Community → New Pull Request'));
+    console.log(styles.dim('   → Upload your agent folder and submit'));
+  } else {
+    console.log(`   ${styles.highlight('cd')} ${projectName}`);
+    // Claude/OpenAI - full TypeScript app
+    console.log(`   ${styles.highlight('cp')} .env.example .env`);
 
-  console.log(`   ${styles.highlight('npm run')} build`);
-  console.log(`   ${styles.highlight('npm')} start`);
-  console.log();
-  console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
-  console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
+    let envVar: string;
+    switch (provider) {
+      case 'claude':
+        envVar = 'ANTHROPIC_API_KEY';
+        break;
+      case 'openai':
+        envVar = 'OPENAI_API_KEY';
+        break;
+      default:
+        envVar = 'ANTHROPIC_API_KEY';
+    }
+    console.log(styles.dim(`   # Add your ${envVar} to .env`));
+
+    console.log(`   ${styles.highlight('npm run')} build`);
+    console.log(`   ${styles.highlight('npm')} start`);
+    console.log();
+
+    console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
+    console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
+  }
   console.log(styles.dim('   → Or use the web builder at https://agent-workshop.dev'));
   console.log();
 }

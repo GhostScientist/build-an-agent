@@ -36,8 +36,45 @@ export const OPENAI_MODELS: ModelChoice[] = [
   },
 ];
 
+export const HUGGINGFACE_MODELS: ModelChoice[] = [
+  {
+    value: 'Qwen/Qwen3-235B-A22B-Instruct-2507',
+    name: 'Qwen 3 235B Instruct',
+    hint: 'recommended',
+  },
+  {
+    value: 'Qwen/Qwen3-32B',
+    name: 'Qwen 3 32B',
+    hint: 'fast',
+  },
+  {
+    value: 'meta-llama/Llama-3.3-70B-Instruct',
+    name: 'Llama 3.3 70B',
+    hint: 'open source',
+  },
+  {
+    value: 'deepseek-ai/DeepSeek-R1',
+    name: 'DeepSeek R1',
+    hint: 'reasoning',
+  },
+  {
+    value: 'deepseek-ai/DeepSeek-V3-0324',
+    name: 'DeepSeek V3',
+    hint: 'general purpose',
+  },
+];
+
 export function getModelsForProvider(provider: SDKProvider): ModelChoice[] {
-  return provider === 'claude' ? CLAUDE_MODELS : OPENAI_MODELS;
+  switch (provider) {
+    case 'claude':
+      return CLAUDE_MODELS;
+    case 'openai':
+      return OPENAI_MODELS;
+    case 'huggingface':
+      return HUGGINGFACE_MODELS;
+    default:
+      return CLAUDE_MODELS;
+  }
 }
 
 export function getDefaultModel(provider: SDKProvider): string {

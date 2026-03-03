@@ -24,7 +24,10 @@ interface ProjectPreviewProps {
 
 export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewProps) {
   const [selectedFile, setSelectedFile] = useState<GeneratedFile | null>(project.files[0])
-  const [activeTab, setActiveTab] = useState<'files' | 'overview' | 'security'>('files')
+  // Default to overview tab for HuggingFace to show usage instructions first
+  const [activeTab, setActiveTab] = useState<'files' | 'overview' | 'security'>(
+    project.config.sdkProvider === 'huggingface' ? 'overview' : 'files'
+  )
 
   const getFileIcon = (file: GeneratedFile) => {
     switch (file.type) {
@@ -172,8 +175,32 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="flex flex-1 overflow-hidden"
+                className="flex flex-1 flex-col overflow-hidden"
               >
+                {/* Quick Start Banner for HuggingFace */}
+                {project.config.sdkProvider === 'huggingface' && (
+                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-200 p-4">
+                    <div className="flex items-center justify-between max-w-none">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🤗</span>
+                        <div>
+                          <p className="font-medium text-amber-900">Ready to run!</p>
+                          <code className="text-sm bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800">
+                            npx @huggingface/tiny-agents run .
+                          </code>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('overview')}
+                        className="text-sm font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 transition-colors"
+                      >
+                        View usage & publishing guide →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-1 overflow-hidden">
                 {/* File Tree */}
                 <div className="w-80 border-r border-gray-200 overflow-y-auto">
                   <div className="p-4">
@@ -258,6 +285,7 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
                     </div>
                   )}
                 </div>
+                </div>
               </motion.div>
             )}
 
@@ -327,7 +355,9 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
 
                   {/* Build Instructions */}
                   <div className="bg-white border border-gray-200 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Setup Instructions</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      {project.config.sdkProvider === 'huggingface' ? 'Quick Start' : 'Setup Instructions'}
+                    </h3>
                     <div className="space-y-4">
                       {project.metadata.buildInstructions.map((instruction, index) => (
                         <div key={index} className="flex items-center space-x-3">
@@ -340,36 +370,127 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
                         </div>
                       ))}
                     </div>
+                    {project.config.sdkProvider === 'huggingface' && (
+                      <p className="mt-4 text-sm text-green-700 bg-green-50 p-3 rounded-lg">
+                        No build step required! Your agent is ready to run instantly.
+                      </p>
+                    )}
                   </div>
 
-                  {/* Dependencies */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Dependencies</h3>
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Production Dependencies</h4>
-                        <div className="space-y-1">
-                          {Object.entries(project.metadata.dependencies).map(([name, version]) => (
-                            <div key={name} className="flex justify-between text-sm">
-                              <span className="font-mono text-gray-700">{name}</span>
-                              <span className="text-gray-500">{version}</span>
-                            </div>
-                          ))}
+                  {/* Share with Community (HuggingFace only) */}
+                  {project.config.sdkProvider === 'huggingface' && (
+                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-xl p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-3xl">🤗</span>
+                        <div>
+                          <h3 className="text-xl font-bold text-amber-900">Share with the Community!</h3>
+                          <p className="text-sm text-amber-700">Add your agent to the official tiny-agents dataset</p>
                         </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Development Dependencies</h4>
-                        <div className="space-y-1">
-                          {Object.entries(project.metadata.devDependencies).map(([name, version]) => (
-                            <div key={name} className="flex justify-between text-sm">
-                              <span className="font-mono text-gray-700">{name}</span>
-                              <span className="text-gray-500">{version}</span>
+
+                      {/* Your Agent Files */}
+                      <div className="bg-white rounded-lg p-4 mb-4 border border-amber-200">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Your Agent Files</h4>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">agent.json</span>
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">PROMPT.md</span>
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">EXAMPLES.md (optional)</span>
+                        </div>
+                      </div>
+
+                      {/* Folder Structure Visualization */}
+                      <div className="bg-white rounded-lg p-4 mb-4 border border-amber-200">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Folder Structure</h4>
+                        <div className="font-mono text-xs text-gray-600">
+                          <div className="text-gray-400">tiny-agents/tiny-agents/</div>
+                          <div className="ml-4 text-amber-600">&lt;your-username&gt;/</div>
+                          <div className="ml-8 text-amber-800 font-bold">{project.config.projectName}/</div>
+                          <div className="ml-12 text-gray-700">agent.json</div>
+                          <div className="ml-12 text-gray-700">PROMPT.md</div>
+                        </div>
+                      </div>
+
+                      {/* Submission Steps */}
+                      <div className="mb-4">
+                        <h4 className="text-sm font-semibold text-amber-800 mb-2">How to Submit</h4>
+                        <div className="space-y-3 bg-white rounded-lg p-4 border border-amber-200">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-medium shrink-0">1</div>
+                            <div>
+                              <span className="text-sm text-gray-700">Go to the dataset and click <strong>"+ Contribute"</strong> → <strong>"New pull request"</strong></span>
+                              <a href="https://huggingface.co/datasets/tiny-agents/tiny-agents" target="_blank" rel="noopener noreferrer" className="block text-xs text-amber-600 hover:underline mt-1 font-medium">Open tiny-agents dataset →</a>
                             </div>
-                          ))}
+                          </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-medium shrink-0">2</div>
+                            <div>
+                              <span className="text-sm text-gray-700">After creating the PR, you'll see <strong>git instructions</strong> to push your files:</span>
+                              <div className="bg-gray-900 text-gray-100 rounded-md p-3 mt-2 text-xs font-mono space-y-1 overflow-x-auto">
+                                <div className="text-gray-400"># Clone and checkout your PR branch</div>
+                                <div>git clone https://huggingface.co/datasets/tiny-agents/tiny-agents</div>
+                                <div>git fetch origin refs/pr/&lt;PR_NUMBER&gt;:pr-&lt;PR_NUMBER&gt;</div>
+                                <div>git checkout pr-&lt;PR_NUMBER&gt;</div>
+                                <div className="text-gray-400 mt-2"># Add your files and push</div>
+                                <div>mkdir -p &lt;your-username&gt;/{project.config.projectName}</div>
+                                <div>cp agent.json PROMPT.md &lt;your-username&gt;/{project.config.projectName}/</div>
+                                <div>git add . && git commit -m "Add {project.config.projectName} agent"</div>
+                                <div>git push origin HEAD:refs/pr/&lt;PR_NUMBER&gt;</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3">
+                            <div className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-medium shrink-0">3</div>
+                            <span className="text-sm text-gray-700">Or use <strong>"Upload files"</strong> in the web UI to upload directly to your PR</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Test First */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                        <p className="text-xs text-blue-700">
+                          <strong>Tip:</strong> Test your agent locally first:
+                          <code className="ml-2 bg-white px-2 py-0.5 rounded">npx @huggingface/tiny-agents run .</code>
+                        </p>
+                      </div>
+
+                      {/* After Merge */}
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p className="text-sm text-green-800 font-medium mb-1">After your PR is merged:</p>
+                        <code className="block bg-white px-3 py-2 rounded text-sm font-mono text-green-700">npx @huggingface/tiny-agents run &lt;your-username&gt;/{project.config.projectName}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dependencies (hide for HuggingFace since there are none) */}
+                  {project.config.sdkProvider !== 'huggingface' && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Dependencies</h3>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-2">Production Dependencies</h4>
+                          <div className="space-y-1">
+                            {Object.entries(project.metadata.dependencies).map(([name, version]) => (
+                              <div key={name} className="flex justify-between text-sm">
+                                <span className="font-mono text-gray-700">{name}</span>
+                                <span className="text-gray-500">{version}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-2">Development Dependencies</h4>
+                          <div className="space-y-1">
+                            {Object.entries(project.metadata.devDependencies).map(([name, version]) => (
+                              <div key={name} className="flex justify-between text-sm">
+                                <span className="font-mono text-gray-700">{name}</span>
+                                <span className="text-gray-500">{version}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </motion.div>
             )}

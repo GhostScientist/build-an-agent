@@ -2,7 +2,7 @@
 
 export type AgentDomain = 'development' | 'business' | 'creative' | 'data' | 'knowledge';
 
-export type SDKProvider = 'claude' | 'openai';
+export type SDKProvider = 'claude' | 'openai' | 'huggingface';
 
 export type PermissionLevel = 'restrictive' | 'balanced' | 'permissive';
 
@@ -54,6 +54,25 @@ export interface MCPSdkServer extends MCPServerBase {
 }
 
 export type MCPServer = MCPStdioServer | MCPHttpServer | MCPSseServer | MCPSdkServer;
+
+export interface MCPServerTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: MCPServerCategory;
+  requiresInput?: boolean;
+  inputId?: string;
+  inputDescription?: string;
+  requiresConfiguration?: boolean;
+  configurationNote?: string;
+  defaultConfig: {
+    transportType: MCPTransportType;
+    command?: string;
+    args?: string[];
+    url?: string;
+    env?: Record<string, string>;
+  };
+}
 
 export interface AgentTemplate {
   id: string;

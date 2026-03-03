@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ArrowLeftIcon, 
+import {
+  ArrowLeftIcon,
   ArrowRightIcon,
   CheckIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
-import { AgentConfig, WizardStep } from '@/types/agent'
+import { AgentConfig, WizardStep, SDKProvider } from '@/types/agent'
+import { ProviderSelection } from './steps/ProviderSelection'
+import { HuggingFaceQuickForm } from './steps/HuggingFaceQuickForm'
 import { DomainSelection } from './steps/DomainSelection'
 import { TemplateSelection } from './steps/TemplateSelection'
 import { SDKConfiguration } from './steps/SDKConfiguration'
@@ -23,90 +25,159 @@ interface AgentBuilderProps {
   onBack: () => void
 }
 
+// Step definitions for full flow (Claude/OpenAI)
+const fullFlowSteps: WizardStep[] = [
+  {
+    id: 'provider',
+    title: 'Choose Provider',
+    description: 'Select your AI provider',
+    component: ProviderSelection,
+    isComplete: (config) => !!config.sdkProvider,
+    validation: (config) => config.sdkProvider ? [] : ['Please select an AI provider']
+  },
+  {
+    id: 'domain',
+    title: 'Choose Domain',
+    description: 'Select your agent\'s area of expertise',
+    component: DomainSelection,
+    isComplete: (config) => !!config.domain,
+    validation: (config) => config.domain ? [] : ['Please select a domain']
+  },
+  {
+    id: 'template',
+    title: 'Select Template',
+    description: 'Pick a starting template for your agent',
+    component: TemplateSelection,
+    isComplete: (config) => !!config.templateId,
+    validation: (config) => config.templateId ? [] : ['Please select a template']
+  },
+  {
+    id: 'model',
+    title: 'Configure Model',
+    description: 'Choose your model and settings',
+    component: SDKConfiguration,
+    isComplete: (config) => !!config.model,
+    validation: (config) => {
+      const errors = []
+      if (!config.model) errors.push('Please select a model')
+      return errors
+    }
+  },
+  {
+    id: 'tools',
+    title: 'Configure Tools',
+    description: 'Select capabilities for your agent',
+    component: ToolConfiguration,
+    isComplete: (config) => !!(config.tools && config.tools.some(t => t.enabled)),
+    validation: (config) => {
+      if (!config.tools?.some(t => t.enabled)) {
+        return ['Please enable at least one tool']
+      }
+      return []
+    }
+  },
+  {
+    id: 'mcp',
+    title: 'MCP Servers',
+    description: 'Connect to Model Context Protocol servers (optional)',
+    component: MCPConfiguration,
+    isComplete: () => true,
+    validation: () => []
+  },
+  {
+    id: 'project',
+    title: 'Project Settings',
+    description: 'Configure your project details',
+    component: ProjectSettings,
+    isComplete: (config) => !!(config.name && config.projectName && config.author),
+    validation: (config) => {
+      const errors = []
+      if (!config.name) errors.push('Agent name is required')
+      if (!config.projectName) errors.push('Project name is required')
+      if (!config.author) errors.push('Author name is required')
+      return errors
+    }
+  },
+  {
+    id: 'preview',
+    title: 'Preview & Generate',
+    description: 'Review your configuration and generate the project',
+    component: PreviewAndGenerate,
+    isComplete: () => true,
+    validation: () => []
+  }
+]
+
+// Step definitions for lightweight flow (HuggingFace)
+const lightweightFlowSteps: WizardStep[] = [
+  {
+    id: 'provider',
+    title: 'Choose Provider',
+    description: 'Select your AI provider',
+    component: ProviderSelection,
+    isComplete: (config) => !!config.sdkProvider,
+    validation: (config) => config.sdkProvider ? [] : ['Please select an AI provider']
+  },
+  {
+    id: 'config',
+    title: 'Configure Agent',
+    description: 'Set up your tiny-agent in one simple form',
+    component: HuggingFaceQuickForm,
+    isComplete: (config) => !!(config.name?.trim() && config.model),
+    validation: (config) => {
+      const errors = []
+      if (!config.name?.trim()) errors.push('Agent name is required')
+      if (!config.model) errors.push('Please select a model')
+      return errors
+    }
+  },
+  {
+    id: 'preview',
+    title: 'Preview & Download',
+    description: 'Review and download your agent files',
+    component: PreviewAndGenerate,
+    isComplete: () => true,
+    validation: () => []
+  }
+]
+
+// Get steps based on provider
+function getStepsForProvider(provider?: SDKProvider): WizardStep[] {
+  if (provider === 'huggingface') {
+    return lightweightFlowSteps
+  }
+  return fullFlowSteps
+}
+
 export function AgentBuilder({ onBack }: AgentBuilderProps) {
   const { config, updateConfig, resetConfig } = useAgentStore()
   const [currentStep, setCurrentStep] = useState(0)
+  const previousProviderRef = useRef<SDKProvider | undefined>(config.sdkProvider)
 
-  const steps: WizardStep[] = [
-    {
-      id: 'domain',
-      title: 'Choose Domain',
-      description: 'Select your agent\'s area of expertise',
-      component: DomainSelection,
-      isComplete: (config) => !!config.domain,
-      validation: (config) => config.domain ? [] : ['Please select a domain']
-    },
-    {
-      id: 'template',  
-      title: 'Select Template',
-      description: 'Pick a starting template for your agent',
-      component: TemplateSelection,
-      isComplete: (config) => !!config.templateId,
-      validation: (config) => config.templateId ? [] : ['Please select a template']
-    },
-    {
-      id: 'sdk',
-      title: 'Configure AI Provider', 
-      description: 'Choose your AI provider and model',
-      component: SDKConfiguration,
-      isComplete: (config) => !!config.sdkProvider,
-      validation: (config) => {
-        const errors = []
-        if (!config.sdkProvider) errors.push('Please select an AI provider')
-        return errors
+  // Get current steps based on provider
+  const steps = useMemo(() => getStepsForProvider(config.sdkProvider), [config.sdkProvider])
+
+  // Handle provider switching - reset step if needed
+  useEffect(() => {
+    const previousProvider = previousProviderRef.current
+    const currentProvider = config.sdkProvider
+
+    if (previousProvider !== currentProvider && currentProvider !== undefined) {
+      // Provider changed, reset to step 1 (after provider selection)
+      if (currentStep > 0) {
+        setCurrentStep(1)
       }
-    },
-    {
-      id: 'tools',
-      title: 'Configure Tools',
-      description: 'Select capabilities for your agent',
-      component: ToolConfiguration,
-      isComplete: (config) => !!(config.tools && config.tools.some(t => t.enabled)),
-      validation: (config) => {
-        if (!config.tools?.some(t => t.enabled)) {
-          return ['Please enable at least one tool']
-        }
-        return []
-      }
-    },
-    {
-      id: 'mcp',
-      title: 'MCP Servers',
-      description: 'Connect to Model Context Protocol servers (optional)',
-      component: MCPConfiguration,
-      isComplete: () => true, // Optional step, always complete
-      validation: () => [] // No validation required
-    },
-    {
-      id: 'project',
-      title: 'Project Settings',
-      description: 'Configure your project details',
-      component: ProjectSettings,
-      isComplete: (config) => !!(config.name && config.projectName && config.author),
-      validation: (config) => {
-        const errors = []
-        if (!config.name) errors.push('Agent name is required')
-        if (!config.projectName) errors.push('Project name is required')
-        if (!config.author) errors.push('Author name is required')
-        return errors
-      }
-    },
-    {
-      id: 'preview',
-      title: 'Preview & Generate',
-      description: 'Review your configuration and generate the project',
-      component: PreviewAndGenerate,
-      isComplete: () => true,
-      validation: () => []
     }
-  ]
+
+    previousProviderRef.current = currentProvider
+  }, [config.sdkProvider, currentStep])
 
   const currentStepData = steps[currentStep]
   const CurrentStepComponent = currentStepData.component
 
   const handleNext = useCallback(() => {
     const errors = currentStepData.validation?.(config) || []
-    
+
     if (errors.length > 0) {
       toast.error(errors[0])
       return
@@ -115,7 +186,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     }
-  }, [currentStep, currentStepData, config])
+  }, [currentStep, currentStepData, config, steps.length])
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
@@ -155,7 +226,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleReset}
@@ -163,6 +234,11 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
               >
                 Reset
               </button>
+              {config.sdkProvider === 'huggingface' && (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
+                  Quick Setup
+                </span>
+              )}
               {config.name && (
                 <div className="text-xs text-muted-foreground font-medium px-2 py-1 bg-muted rounded">
                   {config.name}
@@ -179,21 +255,21 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
           <div className="lg:col-span-1">
             <div className="card p-6 sticky top-24">
               <h3 className="text-base font-semibold mb-4">Progress</h3>
-              
+
               <div className="space-y-3">
                 {steps.map((step, index) => {
                   const isCompleted = step.isComplete(config)
                   const isCurrent = index === currentStep
                   const isAccessible = index <= currentStep
-                  
+
                   return (
                     <button
                       key={step.id}
                       onClick={() => handleStepClick(index)}
                       disabled={!isAccessible}
                       className={`w-full text-left p-3 rounded-md border transition-all ${
-                        isCurrent 
-                          ? 'border-primary bg-accent' 
+                        isCurrent
+                          ? 'border-primary bg-accent'
                           : isCompleted
                           ? 'border-primary/20 bg-primary/5 hover:bg-primary/10'
                           : isAccessible
@@ -237,7 +313,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
           <div className="lg:col-span-3">
             <AnimatePresence mode="wait">
               <motion.div
-                key={currentStep}
+                key={`${config.sdkProvider}-${currentStep}`}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -253,7 +329,7 @@ export function AgentBuilder({ onBack }: AgentBuilderProps) {
                   </p>
                 </div>
 
-                <CurrentStepComponent 
+                <CurrentStepComponent
                   config={config}
                   updateConfig={updateConfig}
                   onNext={handleNext}

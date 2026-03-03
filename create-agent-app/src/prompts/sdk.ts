@@ -10,7 +10,10 @@ export interface SDKAnswers {
   model: string;
 }
 
-export async function promptSDK(): Promise<SDKAnswers> {
+/**
+ * Prompt for provider only (used for early branching in wizard flow)
+ */
+export async function promptProviderOnly(): Promise<{ provider: SDKProvider }> {
   const providerResponse = await prompt<{ provider: SDKProvider }>({
     type: 'select',
     name: 'provider',
@@ -18,19 +21,31 @@ export async function promptSDK(): Promise<SDKAnswers> {
     choices: [
       {
         name: 'claude',
-        message: 'Claude (Anthropic)',
+        message: `Claude (Anthropic) ${styles.dim('- Full TypeScript app')}`,
         value: 'claude',
       },
       {
         name: 'openai',
-        message: 'OpenAI',
+        message: `OpenAI ${styles.dim('- Full TypeScript app')}`,
         value: 'openai',
+      },
+      {
+        name: 'huggingface',
+        message: `HuggingFace Tiny Agents ${styles.dim('- Lightweight, instant run')}`,
+        value: 'huggingface',
       },
     ],
     initial: 0,
   });
 
-  const models = getModelsForProvider(providerResponse.provider);
+  return { provider: providerResponse.provider };
+}
+
+/**
+ * Prompt for model only (when provider is already known)
+ */
+export async function promptModelForProvider(provider: SDKProvider): Promise<string> {
+  const models = getModelsForProvider(provider);
 
   const modelResponse = await prompt<{ model: string }>({
     type: 'select',
@@ -44,8 +59,18 @@ export async function promptSDK(): Promise<SDKAnswers> {
     initial: 0,
   });
 
+  return modelResponse.model;
+}
+
+/**
+ * Combined prompt for provider and model (original function, kept for backwards compatibility)
+ */
+export async function promptSDK(): Promise<SDKAnswers> {
+  const { provider } = await promptProviderOnly();
+  const model = await promptModelForProvider(provider);
+
   return {
-    provider: providerResponse.provider,
-    model: modelResponse.model,
+    provider,
+    model,
   };
 }
