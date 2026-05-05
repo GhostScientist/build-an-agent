@@ -1,8 +1,25 @@
 {
   "name": "Agent Workshop",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "postCreateCommand": "npm install",
+  "build": {
+    "dockerfile": "Containerfile"
+  },
+  "remoteUser": "node",
+  "containerEnv": {
+    "HOME": "/home/node",
+    "INSTALL_AGENT_CLIS": "false",
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "runArgs": [
+    "--userns=keep-id",
+    "--security-opt=no-new-privileges"
+  ],
+  "postCreateCommand": ".devcontainer/scripts/post-create.sh",
   "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Agent Workshop web app"
+    }
+  },
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },

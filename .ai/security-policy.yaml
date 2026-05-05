@@ -1,0 +1,94 @@
+version: 1
+name: agent-workshop-devcontainer
+summary: >
+  Baseline policy for running agentic CLI tools inside the project DevContainer.
+  This policy is intentionally conservative and should be translated into each
+  provider's native config or wrapper flags.
+
+principles:
+  - Run agents inside the DevContainer, not directly on the host.
+  - Keep host home directories and container engine sockets out of the container.
+  - Prefer read-only planning before write-capable implementation.
+  - Require human review for git publishing, destructive commands, secrets, and network expansion.
+
+paths:
+  deny_read:
+    - .env
+    - .env.*
+    - "**/*.pem"
+    - "**/*.key"
+    - "**/*_rsa"
+    - "**/*_ed25519"
+    - .ssh/**
+    - .gnupg/**
+    - .aws/**
+    - .config/gh/hosts.yml
+  deny_write:
+    - .git/**
+    - .devcontainer/**
+    - .claude/**
+    - .codex/**
+    - .github/workflows/**
+    - package-lock.json
+  allow_write:
+    - agent-workshop-app/**
+    - create-agent-app/**
+    - docs/**
+    - scripts/**
+
+commands:
+  allow:
+    - git status
+    - git diff
+    - git log
+    - npm ci
+    - npm run build
+    - npm run type-check --workspace agent-workshop-app
+    - npm run build --workspace create-agent-app
+  ask:
+    - npm install
+    - npm update
+    - git commit
+    - gh pr create
+  deny:
+    - git push
+    - gh secret
+    - gh auth token
+    - rm -rf
+    - chmod -R 777
+    - curl * | sh
+    - wget * | sh
+
+network:
+  default: deny_for_agent_commands
+  allow_for_auth:
+    - api.openai.com
+    - "*.anthropic.com"
+    - github.com
+    - api.github.com
+  ask:
+    - registry.npmjs.org
+    - objects.githubusercontent.com
+
+mcp:
+  default: deny
+  allow: []
+
+profiles:
+  read-only:
+    write: false
+    shell: ask
+    network: deny
+  edit:
+    write: workspace
+    shell: ask
+    network: deny
+  build:
+    write: workspace
+    shell: allow_project_build_commands
+    network: ask
+  release:
+    write: workspace
+    shell: ask
+    network: ask
+    git_publish: ask

@@ -64,6 +64,8 @@ Create specialized agents for:
 
 Full documentation is available in the web UI at `/docs` or see the [agent-workshop-app](./agent-workshop-app) package.
 
+For secure local agent workflows, see [DevContainers for Agentic Engineering](./docs/devcontainer-ai-agents).
+
 ## Requirements
 
 - Node.js 18+

@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  scripts/agent-safe <codex|claude|copilot> [--profile read-only|edit|build|release] [agent args...]
+
+Profiles:
+  read-only  Planning and codebase inspection.
+  edit       Workspace edits with approval for shell commands.
+  build      Workspace edits plus project build/test commands.
+  release    Same as edit; publishing still requires explicit approval.
+USAGE
+}
+
+agent="${1:-}"
+if [[ -z "$agent" || "$agent" == "-h" || "$agent" == "--help" ]]; then
+  usage
+  exit 0
+fi
+shift
+
+profile="edit"
+if [[ "${1:-}" == "--profile" ]]; then
+  profile="${2:-}"
+  shift 2
+fi
+
+case "$profile" in
+  read-only|edit|build|release) ;;
+  *)
+    printf 'Unknown profile: %s\n\n' "$profile" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf '%s is not installed in this container.\n' "$1" >&2
+    printf 'Set INSTALL_AGENT_CLIS=true and rebuild the DevContainer, or install the CLI inside the container.\n' >&2
+    exit 127
+  fi
+}
+
+case "$agent" in
+  codex)
+    require_command codex
+    case "$profile" in
+      read-only) exec codex --profile read-only "$@" ;;
+      edit) exec codex --profile edit "$@" ;;
+      build) exec codex --profile build "$@" ;;
+      release) exec codex --profile release "$@" ;;
+    esac
+    ;;
+  claude)
+    require_command claude
+    case "$profile" in
+      read-only) exec claude --permission-mode plan "$@" ;;
+      edit) exec claude --permission-mode acceptEdits "$@" ;;
+      build) exec claude --permission-mode acceptEdits "$@" ;;
+      release) exec claude --permission-mode default "$@" ;;
+    esac
+    ;;
+  copilot)
+    require_command copilot
+    copilot_args=(
+      "--deny-tool=shell(git push)"
+      "--deny-tool=shell(gh secret)"
+      "--deny-tool=shell(gh auth token)"
+      "--deny-tool=shell(rm)"
+      "--deny-tool=shell(chmod)"
+      "--deny-tool=shell(curl)"
+      "--deny-tool=shell(wget)"
+    )
+    if [[ "$profile" == "read-only" ]]; then
+      copilot_args+=("--deny-tool=write")
+    fi
+    exec copilot "${copilot_args[@]}" "$@"
+    ;;
+  *)
+    printf 'Unknown agent: %s\n\n' "$agent" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -1,6 +1,9 @@
 {
   "name": "agent-workshop",
   "private": true,
+  "scripts": {
+    "devcontainer:verify": "bash .devcontainer/scripts/verify-agent-sandbox.sh"
+  },
   "workspaces": [
     "agent-workshop-app",
     "create-agent-app"

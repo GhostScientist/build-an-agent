@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(npm run build)",
+      "Bash(npm run build --workspace create-agent-app)",
+      "Bash(npm run type-check --workspace agent-workshop-app)"
+    ],
+    "ask": [
+      "Bash(npm install *)",
+      "Bash(npm update *)",
+      "Bash(git commit *)",
+      "Bash(gh pr create *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(gh secret *)",
+      "Bash(gh auth token)",
+      "Bash(rm -rf *)",
+      "Bash(chmod -R 777 *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.ssh/**)",
+      "Read(./.gnupg/**)",
+      "Read(./.aws/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false,
+    "excludedCommands": [
+      "podman *",
+      "docker *"
+    ],
+    "filesystem": {
+      "denyRead": [
+        "./.env",
+        "./.env.*",
+        "./.ssh/**",
+        "./.gnupg/**",
+        "./.aws/**",
+        "./**/*.pem",
+        "./**/*.key",
+        "./**/*_rsa",
+        "./**/*_ed25519"
+      ],
+      "denyWrite": [
+        "./.git/**",
+        "./.devcontainer/**",
+        "./.claude/**",
+        "./.codex/**",
+        "./.github/workflows/**"
+      ]
+    },
+    "network": {
+      "allowedDomains": [],
+      "deniedDomains": [
+        "*"
+      ]
+    }
+  },
+  "disableBypassPermissionsMode": "disable",
+  "disableAutoMode": "disable"
+}

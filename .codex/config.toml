@@ -1,0 +1,44 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+default_permissions = "agent_workspace"
+web_search = "cached"
+
+[sandbox_workspace_write]
+network_access = false
+
+[permissions.agent_workspace.filesystem.":project_roots"]
+"." = "write"
+"**/.env" = "none"
+"**/.env.*" = "none"
+"**/*.pem" = "none"
+"**/*.key" = "none"
+"**/*_rsa" = "none"
+"**/*_ed25519" = "none"
+".ssh/**" = "none"
+".gnupg/**" = "none"
+".aws/**" = "none"
+
+[permissions.agent_workspace.network]
+enabled = false
+
+[profiles.read-only]
+sandbox_mode = "read-only"
+approval_policy = "on-request"
+default_permissions = ":read-only"
+
+[profiles.edit]
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+default_permissions = "agent_workspace"
+
+[profiles.build]
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+default_permissions = "agent_workspace"
+
+[profiles.release]
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+default_permissions = "agent_workspace"

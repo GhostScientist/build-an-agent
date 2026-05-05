@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+
+USER root
+
+RUN apt-get update \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install -y --no-install-recommends \
+      bash \
+      bubblewrap \
+      ca-certificates \
+      curl \
+      git \
+      jq \
+      less \
+      procps \
+      ripgrep \
+      shellcheck \
+      unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /home/node/.npm-global \
+    && chown -R node:node /home/node/.npm-global
+
+ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
+ENV PATH=/home/node/.npm-global/bin:${PATH}
+
+USER node
