@@ -195,22 +195,6 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* IP Attribution Banner */}
-      <div className="bg-primary/5 border-b border-primary/20">
-        <div className="container mx-auto px-4 py-3 text-center">
-          <p className="text-sm font-medium text-foreground">
-            <strong>build-an-agent</strong> / <strong>create-agent-app</strong> is the intellectual property of{' '}
-            <a href="https://reasoning.software" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
-              reasoning.software
-            </a>{' '}
-            (MadWatch LLC), created by{' '}
-            <a href="https://github.com/GhostScientist" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
-              Dakota Kim
-            </a>
-          </p>
-        </div>
-      </div>
-
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-background">
         <div className="container mx-auto px-4 py-32">
@@ -895,34 +879,29 @@ export default function HomePage() {
             <div className="flex items-center justify-center space-x-3 mb-4">
               <h4 className="text-lg font-semibold">Build-An-Agent Workshop</h4>
             </div>
-            <p className="text-primary-foreground/80 mb-4">
+            <p className="text-primary-foreground/80 mb-6">
               Free, open-source tool for generating AI agent CLIs
             </p>
-            <p className="text-primary-foreground/80 mb-2">
-              Intellectual property of{' '}
-              <a
-                href="https://reasoning.software"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline font-semibold hover:text-primary-foreground"
-              >
-                reasoning.software
-              </a>{' '}
-              (MadWatch LLC)
-            </p>
-            <p className="text-primary-foreground/80 mb-6">
-              Created by{' '}
+            <p className="text-primary-foreground/60 text-sm">
+              © 2025-{new Date().getFullYear()}{' '}
               <a
                 href="https://github.com/GhostScientist"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline font-semibold hover:text-primary-foreground"
+                className="underline hover:text-primary-foreground"
               >
                 Dakota Kim
               </a>
-            </p>
-            <p className="text-primary-foreground/60 text-sm">
-              © 2025-{new Date().getFullYear()} Dakota Kim / reasoning.software (MadWatch LLC). MIT License.
+              {' · '}
+              <a
+                href="https://reasoning.software"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary-foreground"
+              >
+                reasoning.software
+              </a>{' '}
+              (MadWatch LLC) · MIT License
             </p>
           </div>
         </div>
