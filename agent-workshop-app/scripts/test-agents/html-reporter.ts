@@ -31,7 +31,7 @@ export interface TestResult {
 }
 
 export interface SuiteResult {
-  provider: 'claude' | 'openai'
+  provider: 'claude' | 'openai' | 'copilot'
   template: string
   total: number
   passed: number
@@ -351,6 +351,11 @@ export function generateHtmlReport(data: ReportData): string {
     }
 
     .provider-badge.openai {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .provider-badge.copilot {
       background: var(--bg-primary);
       color: var(--text-primary);
     }

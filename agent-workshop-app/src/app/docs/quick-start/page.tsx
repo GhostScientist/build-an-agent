@@ -14,7 +14,7 @@ export default function QuickStartPage() {
       <h2>Prerequisites</h2>
       <ul>
         <li>Node.js 18 or later</li>
-        <li>An API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a> or <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer">OpenAI</a></li>
+        <li>An API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a> or <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer">OpenAI</a>, or an active <a href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot</a> subscription</li>
       </ul>
 
       <h2>Step 1: Open the Builder</h2>
@@ -52,6 +52,7 @@ export default function QuickStartPage() {
       <ul>
         <li><strong>Claude Agent SDK</strong> (recommended) - Claude Sonnet 4.5, Haiku 4.5, or Opus 4.1</li>
         <li><strong>OpenAI SDK</strong> - GPT-5.1, GPT-5 mini, GPT-4.1, and more</li>
+        <li><strong>GitHub Copilot SDK</strong> - Auto, Claude Sonnet 4.5, GPT-5, GPT-5.4, GPT-5.2 Codex (no API key)</li>
       </ul>
 
       <h2>Step 5: Enable Tools</h2>

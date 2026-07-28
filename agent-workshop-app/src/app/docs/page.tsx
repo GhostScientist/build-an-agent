@@ -20,11 +20,12 @@ export default function DocsPage() {
       </p>
 
       <p>
-        The generated agents support two major AI providers:
+        The generated agents support several major AI providers:
       </p>
       <ul>
         <li><strong>Claude Agent SDK</strong> - Anthropic&apos;s official agent framework</li>
         <li><strong>OpenAI Agents SDK</strong> - OpenAI&apos;s official agent framework</li>
+        <li><strong>GitHub Copilot SDK</strong> - the agent runtime behind Copilot CLI, no API key required</li>
       </ul>
 
       <h2>Key Features</h2>
@@ -75,7 +76,7 @@ export default function DocsPage() {
       <ol>
         <li><strong>Domain Selection</strong> - Choose your agent&apos;s area of expertise (Development, Business, Creative, Data, or Knowledge)</li>
         <li><strong>Template Selection</strong> - Pick a pre-built template or start from scratch</li>
-        <li><strong>SDK Configuration</strong> - Select your AI provider (Claude or OpenAI) and model</li>
+        <li><strong>SDK Configuration</strong> - Select your AI provider (Claude, OpenAI, or GitHub Copilot) and model</li>
         <li><strong>Tool Configuration</strong> - Enable the capabilities your agent needs</li>
         <li><strong>MCP Configuration</strong> - Connect external servers via Model Context Protocol</li>
         <li><strong>Project Settings</strong> - Configure metadata like name, version, and license</li>

@@ -498,10 +498,12 @@ export default function HomePage() {
                           ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                           : provider === 'openai'
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : provider === 'copilot'
+                          ? 'bg-slate-200 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300'
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                       }`}
                     >
-                      {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : '🤗 Tiny Agents'}
+                      {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : provider === 'copilot' ? 'Copilot' : '🤗 Tiny Agents'}
                     </span>
                   ))}
                 </div>
@@ -915,19 +917,19 @@ const features = [
     title: 'Multi-Step Workflows',
     description: 'Domain-specific slash commands like /literature-review, /code-audit, /invoice-batch orchestrate complex multi-step processes. Template variables, retry logic, and error handling built-in.',
     icon: CodeBracketIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'Configurable Security',
     description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
     icon: CogIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'SDK-Native & Customizable',
     description: 'Download complete TypeScript source code. Full control over prompts, tools, and workflows. Extend with custom business logic from day one.',
     icon: RocketLaunchIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'Zero-Build Tiny Agents',

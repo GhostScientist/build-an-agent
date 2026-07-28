@@ -125,13 +125,59 @@ const modelsByProvider: Record<SDKProvider, Array<{
       pricing: 'Pay-per-use via HuggingFace',
       contextWindow: '64K'
     }
+  ],
+  copilot: [
+    {
+      id: 'auto',
+      name: 'Auto (Recommended)',
+      description: 'Lets the Copilot runtime pick the best available model for each request',
+      pricing: 'Included with GitHub Copilot',
+      contextWindow: 'Model dependent'
+    },
+    {
+      id: 'claude-sonnet-4.5',
+      name: 'Claude Sonnet 4.5',
+      description: 'Strong general coding and agentic model',
+      pricing: 'Included with GitHub Copilot',
+      contextWindow: '200K'
+    },
+    {
+      id: 'gpt-5',
+      name: 'GPT-5',
+      description: 'Frontier reasoning model for complex, multi-step work',
+      pricing: 'Included with GitHub Copilot',
+      contextWindow: '128K'
+    },
+    {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      description: 'Latest general-purpose GPT-5 series model',
+      pricing: 'Included with GitHub Copilot',
+      contextWindow: '128K'
+    },
+    {
+      id: 'gpt-5.2-codex',
+      name: 'GPT-5.2 Codex',
+      description: 'Optimized for long-running coding and refactoring tasks',
+      pricing: 'Included with GitHub Copilot',
+      contextWindow: '128K'
+    }
   ]
 }
 
 const providerNames: Record<SDKProvider, string> = {
   claude: 'Claude',
   openai: 'OpenAI',
-  huggingface: 'HuggingFace'
+  huggingface: 'HuggingFace',
+  copilot: 'GitHub Copilot'
+}
+
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+    </svg>
+  )
 }
 
 export function SDKConfiguration({ config, updateConfig }: SDKConfigurationProps) {
@@ -156,6 +202,8 @@ export function SDKConfiguration({ config, updateConfig }: SDKConfigurationProps
             <img src="/Anthropic icon - Slate.svg" alt="Anthropic" className="w-full h-full" />
           ) : provider === 'openai' ? (
             <img src="/OpenAI-black-monoblossom.svg" alt="OpenAI" className="w-full h-full" />
+          ) : provider === 'copilot' ? (
+            <GitHubMark className="w-full h-full text-gray-900" />
           ) : (
             <span className="text-2xl">🤗</span>
           )}
@@ -294,13 +342,25 @@ export function SDKConfiguration({ config, updateConfig }: SDKConfigurationProps
       >
         <div className="flex items-start space-x-3">
           <InformationCircleIcon className="w-5 h-5 text-blue-500 mt-0.5" />
-          <div>
-            <h5 className="font-medium text-blue-900">API Key Required</h5>
-            <p className="text-sm text-blue-700 mt-1">
-              You'll need to provide your {providerNames[provider]} API key when running the generated agent.
-              The agent will include configuration instructions for setting up authentication.
-            </p>
-          </div>
+          {provider === 'copilot' ? (
+            <div>
+              <h5 className="font-medium text-blue-900">GitHub Copilot Subscription Required</h5>
+              <p className="text-sm text-blue-700 mt-1">
+                No API key needed. The generated agent reuses your existing Copilot CLI or{' '}
+                <code className="font-mono">gh</code> CLI login, or a{' '}
+                <code className="font-mono">GITHUB_TOKEN</code> with Copilot access.
+                Requires Node.js 20.19+.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <h5 className="font-medium text-blue-900">API Key Required</h5>
+              <p className="text-sm text-blue-700 mt-1">
+                You'll need to provide your {providerNames[provider]} API key when running the generated agent.
+                The agent will include configuration instructions for setting up authentication.
+              </p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
