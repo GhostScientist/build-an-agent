@@ -12,9 +12,12 @@ export default function RunningAgentPage() {
     >
       <h2>Prerequisites</h2>
       <ul>
-        <li>Node.js 18 or later</li>
+        <li>Node.js 18 or later (20.19+ for GitHub Copilot agents)</li>
         <li>npm or yarn</li>
-        <li>API key from your chosen provider (Anthropic or OpenAI)</li>
+        <li>
+          API key from your chosen provider (Anthropic or OpenAI), or an active GitHub
+          Copilot subscription
+        </li>
       </ul>
 
       <h2>Initial Setup</h2>
@@ -49,7 +52,10 @@ cd my-agent`}
 ANTHROPIC_API_KEY=sk-ant-...
 
 # For OpenAI SDK
-OPENAI_API_KEY=sk-...`}
+OPENAI_API_KEY=sk-...
+
+# For GitHub Copilot SDK (optional - a Copilot CLI or gh CLI login also works)
+GITHUB_TOKEN=ghu_...`}
       />
 
       <h3>4. Build the Project</h3>

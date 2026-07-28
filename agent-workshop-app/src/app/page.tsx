@@ -148,6 +148,14 @@ permissions: restrictive`
   }
 ]
 
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+    </svg>
+  )
+}
+
 export default function HomePage() {
   const [showBuilder, setShowBuilder] = useState(false)
   const [expandedHeuristic, setExpandedHeuristic] = useState<string | null>(null)
@@ -165,22 +173,27 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-14">
             <div className="flex items-center space-x-3">
-              <h1 className="text-lg font-semibold tracking-tight">Build-An-Agent Workshop</h1>
+              <h1 className="text-base md:text-lg font-semibold tracking-tight whitespace-nowrap">Build-An-Agent Workshop</h1>
             </div>
             
-            <div className="flex items-center space-x-6">
-              <a href="#why" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Why
-              </a>
-              <a href="#levers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Levers
-              </a>
-              <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Features
-              </a>
-              <a href="#templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Templates
-              </a>
+            <div className="flex items-center space-x-4 md:space-x-6">
+              <nav className="hidden md:flex items-center space-x-6">
+                <a href="#providers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Providers
+                </a>
+                <a href="#why" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Why
+                </a>
+                <a href="#levers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Levers
+                </a>
+                <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Features
+                </a>
+                <a href="#templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Templates
+                </a>
+              </nav>
               <a href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Docs
               </a>
@@ -199,17 +212,27 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-background">
         <div className="container mx-auto px-4 py-32">
           <div className="text-center">
-            <motion.h2
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
+              className="mb-6"
+            >
+              <span className="badge-outline px-4 py-1.5 text-xs md:text-sm font-medium tracking-wide uppercase">
+                The provider-agnostic agent builder
+              </span>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.05 }}
               className="text-4xl md:text-6xl font-bold tracking-tighter mb-6 text-foreground"
             >
-              Idea to{' '}
+              One Wizard.{' '}
               <span className="underline decoration-4 underline-offset-8 decoration-primary/30">
-                AI Agent CLI
+                Every Agent SDK.
               </span>
-              {' '}in Minutes
             </motion.h2>
 
             <motion.p
@@ -218,34 +241,38 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
-              An educational platform for building AI agent CLIs.
-              Explore what goes into agentic systems and ship when you&apos;re ready. <br />
-              <span className="font-semibold text-foreground">Free and open-source.</span>
+              An educational builder for AI agent CLIs. Answer the wizard once, then download a
+              complete TypeScript project on Claude, OpenAI, GitHub Copilot, or HuggingFace
+              &mdash; same questions, same project shape, four runtimes. <br />
+              <span className="font-semibold text-foreground">Free, open-source, and no lock-in.</span>
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.15 }}
-              className="flex flex-wrap gap-3 justify-center mb-8 max-w-3xl mx-auto"
+              className="flex flex-wrap gap-3 justify-center mb-8 max-w-4xl mx-auto"
             >
               <div className="badge-outline px-4 py-2 text-sm font-medium bg-orange-500/5 border-orange-500/20 text-orange-700 dark:text-orange-400 flex items-center gap-2">
                 <img src="/Anthropic icon - Slate.svg" alt="Anthropic" className="w-4 h-4" />
-                Anthropic Claude Agents SDK
+                Claude Agent SDK
               </div>
               <div className="badge-outline px-4 py-2 text-sm font-medium bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                 <img src="/OpenAI-black-monoblossom.svg" alt="OpenAI" className="w-4 h-4" />
                 OpenAI Agents SDK
               </div>
-              <div className="badge-outline px-4 py-2 text-sm font-medium bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center gap-2 relative">
-                <span className="text-base">🤗</span>
-                HuggingFace Tiny Agents
+              <div className="badge-outline px-4 py-2 text-sm font-medium bg-slate-500/5 border-slate-500/20 text-slate-700 dark:text-slate-300 flex items-center gap-2 relative">
+                <GitHubMark className="w-4 h-4" />
+                GitHub Copilot SDK
                 <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-yellow-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 shadow-sm">
                   ✨ NEW
                 </span>
               </div>
+              <div className="badge-outline px-4 py-2 text-sm font-medium bg-amber-500/5 border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                <span className="text-base">🤗</span>
+                HuggingFace Tiny Agents
+              </div>
             </motion.div>
-            
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -319,6 +346,100 @@ export default function HomePage() {
               </div>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* Provider-Agnostic Section */}
+      <section id="providers" className="py-24 bg-background border-t">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <motion.h3
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="text-3xl font-bold tracking-tight mb-4"
+            >
+              Pick Your SDK. Keep Your Agent.
+            </motion.h3>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-lg text-muted-foreground max-w-3xl mx-auto"
+            >
+              Most agent scaffolds lock you into a single vendor. Here, the provider is just
+              one step in the wizard. Your domain, tools, workflows, and permissions carry
+              over &mdash; only the SDK underneath changes.
+            </motion.p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {sdkProviders.map((provider, index) => (
+              <motion.div
+                key={provider.name}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.15 + index * 0.08 }}
+                className="card p-6 flex flex-col hover:shadow-md transition-all duration-200 relative"
+              >
+                {provider.isNew && (
+                  <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-yellow-400 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+                    ✨ NEW
+                  </span>
+                )}
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${provider.iconWrapper}`}>
+                  {provider.logo}
+                </div>
+                <h4 className="text-base font-semibold mb-1">{provider.name}</h4>
+                <code className="text-[11px] text-muted-foreground mb-3 break-all">{provider.pkg}</code>
+                <p className="text-sm text-muted-foreground mb-4 flex-1">{provider.pitch}</p>
+                <dl className="text-xs space-y-2 border-t pt-3">
+                  <div>
+                    <dt className="text-muted-foreground">Models</dt>
+                    <dd className="font-medium">{provider.models}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Auth</dt>
+                    <dd className="font-medium">{provider.auth}</dd>
+                  </div>
+                </dl>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="bg-muted/40 rounded-lg border p-8 max-w-5xl mx-auto"
+          >
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground text-center mb-6">
+              What stays the same no matter which SDK you pick
+            </h4>
+            <div className="grid sm:grid-cols-3 gap-6 text-center">
+              <div>
+                <div className="font-semibold mb-1">Same wizard</div>
+                <p className="text-sm text-muted-foreground">
+                  Domain, template, tools, and permission level are configured identically
+                  across providers.
+                </p>
+              </div>
+              <div>
+                <div className="font-semibold mb-1">Same project shape</div>
+                <p className="text-sm text-muted-foreground">
+                  TypeScript source, slash command workflows, and a permission system you can
+                  read and edit.
+                </p>
+              </div>
+              <div>
+                <div className="font-semibold mb-1">Same escape hatch</div>
+                <p className="text-sm text-muted-foreground">
+                  You own the code. Rerun the wizard on another SDK to see exactly what
+                  changes underneath.
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -460,7 +581,7 @@ export default function HomePage() {
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Generated agents include sophisticated slash command workflows for multi-step operations.
-              Built on Claude Agent SDK, OpenAI Agents API, and HuggingFace Tiny Agents with MCP tools, streaming, and configurable security.
+              Built on the Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, and HuggingFace Tiny Agents with MCP tools, streaming, and configurable security.
             </p>
           </div>
           
@@ -498,10 +619,12 @@ export default function HomePage() {
                           ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                           : provider === 'openai'
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : provider === 'copilot'
+                          ? 'bg-slate-200 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300'
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                       }`}
                     >
-                      {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : '🤗 Tiny Agents'}
+                      {provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : provider === 'copilot' ? 'Copilot' : '🤗 Tiny Agents'}
                     </span>
                   ))}
                 </div>
@@ -828,8 +951,9 @@ export default function HomePage() {
               Ready to Build Your Workflow-Powered Agent?
             </h3>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Choose your domain, select a template with pre-built workflows, and configure tools.
-              Download a TypeScript CLI with slash commands, multi-step orchestration, and configurable security.
+              Choose your domain, select a template with pre-built workflows, and pick any of the
+              four supported SDKs. Download a TypeScript CLI with slash commands, multi-step
+              orchestration, and configurable security.
             </p>
             <button
               onClick={() => setShowBuilder(true)}
@@ -910,24 +1034,64 @@ export default function HomePage() {
   )
 }
 
+const sdkProviders = [
+  {
+    name: 'Claude Agent SDK',
+    pkg: '@anthropic-ai/claude-code',
+    pitch: 'Anthropic\'s agent framework with native streaming and built-in file and code tools.',
+    models: 'Sonnet 4.5, Haiku 4.5, Opus 4.1',
+    auth: 'ANTHROPIC_API_KEY',
+    iconWrapper: 'bg-orange-500/10',
+    logo: <img src="/Anthropic icon - Slate.svg" alt="Anthropic" className="w-5 h-5" />,
+  },
+  {
+    name: 'OpenAI Agents SDK',
+    pkg: '@openai/agents',
+    pitch: 'The official OpenAI agent framework, with advanced function calling and a large ecosystem.',
+    models: 'GPT-5.1, GPT-5 mini, GPT-4.1',
+    auth: 'OPENAI_API_KEY',
+    iconWrapper: 'bg-emerald-500/10',
+    logo: <img src="/OpenAI-black-monoblossom.svg" alt="OpenAI" className="w-5 h-5" />,
+  },
+  {
+    name: 'GitHub Copilot SDK',
+    pkg: '@github/copilot-sdk',
+    pitch: 'The same agent runtime as Copilot CLI, with built-in file, search, and shell tools.',
+    models: 'Auto, Claude Sonnet 4.5, GPT-5, GPT-5.4',
+    auth: 'Copilot subscription (no API key)',
+    iconWrapper: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
+    logo: <GitHubMark className="w-5 h-5" />,
+    isNew: true,
+  },
+  {
+    name: 'HuggingFace Tiny Agents',
+    pkg: '@huggingface/tiny-agents',
+    pitch: 'JSON and markdown only. No build step, open-source models, publishable to the Hub.',
+    models: 'Qwen 3, Llama 3.3, DeepSeek',
+    auth: 'HF_TOKEN',
+    iconWrapper: 'bg-amber-500/10',
+    logo: <span className="text-lg">🤗</span>,
+  },
+]
+
 const features = [
   {
     title: 'Multi-Step Workflows',
     description: 'Domain-specific slash commands like /literature-review, /code-audit, /invoice-batch orchestrate complex multi-step processes. Template variables, retry logic, and error handling built-in.',
     icon: CodeBracketIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'Configurable Security',
     description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
     icon: CogIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'SDK-Native & Customizable',
     description: 'Download complete TypeScript source code. Full control over prompts, tools, and workflows. Extend with custom business logic from day one.',
     icon: RocketLaunchIcon,
-    providers: ['claude', 'openai'],
+    providers: ['claude', 'openai', 'copilot'],
   },
   {
     title: 'Zero-Build Tiny Agents',

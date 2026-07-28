@@ -25,7 +25,7 @@ export default function PreviewGeneratePage() {
       <ul>
         <li><strong>Domain</strong> - Your agent&apos;s area of expertise</li>
         <li><strong>Template</strong> - The template you selected (if any)</li>
-        <li><strong>SDK Provider</strong> - Claude or OpenAI</li>
+        <li><strong>SDK Provider</strong> - Claude, OpenAI, or GitHub Copilot</li>
         <li><strong>Model</strong> - The specific model to use</li>
       </ul>
 
@@ -116,7 +116,8 @@ cd my-agent`}
 # Edit .env and add your API key:
 # ANTHROPIC_API_KEY=your-key-here
 # or
-# OPENAI_API_KEY=your-key-here`}
+# OPENAI_API_KEY=your-key-here
+# GitHub Copilot agents need no API key - sign in with: npx @github/copilot`}
       />
 
       <h3>4. Build the Agent</h3>

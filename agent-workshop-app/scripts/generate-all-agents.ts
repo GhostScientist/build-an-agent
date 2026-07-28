@@ -6,16 +6,19 @@ import * as path from 'path'
 const OUTPUT_DIR = path.join(__dirname, '../../GENERATED_AGENTS')
 
 // Parse CLI arguments
-function parseArgs(): { provider: SDKProvider | 'both'; templates?: string[] } {
+function parseArgs(): { provider: SDKProvider | 'all'; templates?: string[] } {
   const args = process.argv.slice(2)
-  let provider: SDKProvider | 'both' = 'both'
+  let provider: SDKProvider | 'all' = 'all'
   let templates: string[] | undefined
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--provider' && args[i + 1]) {
       const p = args[i + 1]
-      if (p === 'claude' || p === 'openai' || p === 'both') {
+      if (p === 'claude' || p === 'openai' || p === 'copilot' || p === 'all') {
         provider = p
+      } else if (p === 'both') {
+        // Backwards compatibility: 'both' predates the Copilot provider
+        provider = 'all'
       }
       i++
     } else if (args[i] === '--template' && args[i + 1]) {
@@ -27,14 +30,15 @@ function parseArgs(): { provider: SDKProvider | 'both'; templates?: string[] } {
 Usage: tsx scripts/generate-all-agents.ts [options]
 
 Options:
-  --provider <name>   Generate for 'claude', 'openai', or 'both' (default: both)
+  --provider <name>   Generate for 'claude', 'openai', 'copilot', or 'all' (default: all)
   --template <id>     Generate specific template(s) only (can repeat)
   --help, -h          Show this help
 
 Examples:
   tsx scripts/generate-all-agents.ts --provider claude
   tsx scripts/generate-all-agents.ts --provider openai
-  tsx scripts/generate-all-agents.ts --template development-agent --provider both
+  tsx scripts/generate-all-agents.ts --provider copilot
+  tsx scripts/generate-all-agents.ts --template development-agent --provider all
 `)
       process.exit(0)
     }
@@ -364,7 +368,7 @@ async function generateAgentForProvider(
   agentConfig: typeof AGENT_CONFIGS[0],
   provider: SDKProvider
 ): Promise<void> {
-  const suffix = provider === 'openai' ? '-openai' : ''
+  const suffix = provider === 'claude' ? '' : `-${provider}`
   const dirName = `${agentConfig.templateId}${suffix}`
 
   console.log(`📦 Generating ${dirName} (${provider})...`)
@@ -378,6 +382,8 @@ async function generateAgentForProvider(
   // Model selection based on provider
   const model = provider === 'claude'
     ? 'claude-sonnet-4-5-20250929'
+    : provider === 'copilot'
+    ? 'auto'
     : 'gpt-4.1'
 
   const config: AgentConfig = {
@@ -451,8 +457,8 @@ async function generateAllAgents() {
     : AGENT_CONFIGS
 
   // Determine which providers to generate
-  const providers: SDKProvider[] = provider === 'both'
-    ? ['claude', 'openai']
+  const providers: SDKProvider[] = provider === 'all'
+    ? ['claude', 'openai', 'copilot']
     : [provider]
 
   for (const agentConfig of configs) {
@@ -466,11 +472,14 @@ async function generateAllAgents() {
   console.log('\nTo test an agent:')
   console.log('  cd GENERATED_AGENTS/<agent-name>')
   console.log('  npm install')
-  if (provider === 'both' || provider === 'claude') {
+  if (provider === 'all' || provider === 'claude') {
     console.log('  export ANTHROPIC_API_KEY=your-key  # for Claude agents')
   }
-  if (provider === 'both' || provider === 'openai') {
+  if (provider === 'all' || provider === 'openai') {
     console.log('  export OPENAI_API_KEY=your-key     # for OpenAI agents')
+  }
+  if (provider === 'all' || provider === 'copilot') {
+    console.log('  # Copilot agents need no API key - sign in with: npx @github/copilot')
   }
   console.log('  npm start')
 }

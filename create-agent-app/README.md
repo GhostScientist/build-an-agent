@@ -1,13 +1,13 @@
 # build-agent-app
 
-Create AI agents with the Claude Agent SDK or OpenAI Agents SDK.
+Create AI agents with the Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, or HuggingFace tiny-agents.
 
 ## Quick Start
 
 ```bash
 npx build-agent-app@latest my-agent
 cd my-agent
-cp .env.example .env  # Add your API key
+cp .env.example .env  # Add your API key (not needed for GitHub Copilot)
 npm run build
 npm start
 ```
@@ -20,7 +20,7 @@ The CLI guides you through a 6-step process:
 2. **Domain** - Choose your agent's area of expertise
    - Development, Business, Creative, Data, or Knowledge
 3. **Template** - Select a pre-configured template or start from scratch
-4. **SDK & Model** - Choose Claude (Anthropic) or OpenAI with your preferred model
+4. **SDK & Model** - Choose Claude (Anthropic), OpenAI, or GitHub Copilot with your preferred model
 5. **Tools & Permissions** - Enable capabilities and set security level
 6. **Project Details** - Author name and license
 
@@ -29,10 +29,10 @@ The CLI guides you through a 6-step process:
 ```bash
 $ npx build-agent-app
 
-   ╔═══════════════════════════════════════╗
-   ║     Agent Workshop CLI               ║
-   ║     Build AI agents with Claude/OpenAI║
-   ╚═══════════════════════════════════════╝
+   ╔════════════════════════════════════════════════╗
+   ║     Agent Workshop CLI                         ║
+   ║     Build agents with Claude/OpenAI/Copilot/HF ║
+   ╚════════════════════════════════════════════════╝
 
 ? What is your project name? › my-agent
 ? What domain is your agent for? › Development
@@ -93,8 +93,10 @@ my-agent/
 
 ## Requirements
 
-- Node.js 18+
-- API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/)
+- Node.js 18+ (20.19+ for GitHub Copilot agents)
+- An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/),
+  or an active [GitHub Copilot](https://github.com/features/copilot) subscription
+  (sign in once with `npx @github/copilot` — no API key needed)
 
 ## Domains
 

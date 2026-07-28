@@ -6,20 +6,20 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Agent Workshop - Build AI Agents in Minutes',
-  description: 'Transform your ideas into powerful AI agents. Choose your domain, configure tools, and download a complete agent project ready for deployment.',
-  keywords: ['AI agents', 'Claude', 'OpenAI', 'agent builder', 'automation', 'no-code'],
+  title: 'Agent Workshop - Build AI Agents on Any SDK',
+  description: 'The provider-agnostic AI agent builder. One wizard, four runtimes: Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, and HuggingFace Tiny Agents. Configure tools and permissions, then download a complete TypeScript agent CLI.',
+  keywords: ['AI agents', 'Claude', 'OpenAI', 'GitHub Copilot', 'HuggingFace', 'agent builder', 'provider agnostic', 'automation', 'no-code'],
   authors: [{ name: 'Dakota Kim / reasoning.software (MadWatch LLC)' }],
   openGraph: {
-    title: 'Agent Workshop - Build AI Agents in Minutes',
-    description: 'From idea to agent in minutes. Build specialized AI assistants for any domain.',
+    title: 'Agent Workshop - Build AI Agents on Any SDK',
+    description: 'One wizard, four agent SDKs: Claude, OpenAI, GitHub Copilot, and HuggingFace. Build specialized AI assistants for any domain without vendor lock-in.',
     type: 'website',
     url: 'https://agent-workshop.dev',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Agent Workshop - Build AI Agents in Minutes',
-    description: 'From idea to agent in minutes. Build specialized AI assistants for any domain.',
+    title: 'Agent Workshop - Build AI Agents on Any SDK',
+    description: 'One wizard, four agent SDKs: Claude, OpenAI, GitHub Copilot, and HuggingFace. Build specialized AI assistants for any domain without vendor lock-in.',
   },
   viewport: 'width=device-width, initial-scale=1',
   themeColor: '#3b82f6',

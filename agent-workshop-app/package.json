@@ -16,10 +16,12 @@
     "test:agents": "tsx scripts/test-agents/runner.ts",
     "test:agents:claude": "tsx scripts/test-agents/runner.ts --provider claude",
     "test:agents:openai": "tsx scripts/test-agents/runner.ts --provider openai",
+    "test:agents:copilot": "tsx scripts/test-agents/runner.ts --provider copilot",
     "test:agents:quick": "tsx scripts/test-agents/runner.ts --quick",
     "generate:agents": "tsx scripts/generate-all-agents.ts",
     "generate:agents:claude": "tsx scripts/generate-all-agents.ts --provider claude",
-    "generate:agents:openai": "tsx scripts/generate-all-agents.ts --provider openai"
+    "generate:agents:openai": "tsx scripts/generate-all-agents.ts --provider openai",
+    "generate:agents:copilot": "tsx scripts/generate-all-agents.ts --provider copilot"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",

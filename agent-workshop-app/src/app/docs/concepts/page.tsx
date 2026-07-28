@@ -237,7 +237,7 @@ export default function ConceptsPage() {
 
       <h2>SDK Providers</h2>
       <p>
-        Agent Workshop supports two AI providers:
+        Agent Workshop supports several AI providers:
       </p>
 
       <h3>Claude Agent SDK</h3>
@@ -256,10 +256,20 @@ export default function ConceptsPage() {
         <li>Models: GPT-5.1, GPT-5 mini, GPT-4.1, and more</li>
       </ul>
 
+      <h3>GitHub Copilot SDK</h3>
+      <ul>
+        <li>Drives the same agent runtime as Copilot CLI</li>
+        <li>No API key &mdash; authenticates with your Copilot subscription</li>
+        <li>Built-in file, search and shell tools (no generated wrappers)</li>
+        <li>Models: Auto, Claude Sonnet 4.5, GPT-5, GPT-5.4, GPT-5.2 Codex</li>
+        <li>Requires Node.js 20.19+</li>
+      </ul>
+
       <Callout type="info">
         <p>
-          Both SDKs produce functionally similar agents. Choose based on your preferred
-          AI provider and model availability.
+          These SDKs produce functionally similar agents. Choose based on your preferred
+          AI provider, model availability, and whether you already have an API key or a
+          Copilot subscription.
         </p>
       </Callout>
     </DocsLayout>

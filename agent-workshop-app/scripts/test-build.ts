@@ -1,18 +1,42 @@
 #!/usr/bin/env tsx
 import { generateAgentProject } from '../src/lib/generator'
-import { AGENT_TEMPLATES, AVAILABLE_TOOLS, type AgentConfig } from '../src/types/agent'
+import { AGENT_TEMPLATES, AVAILABLE_TOOLS, type AgentConfig, type SDKProvider } from '../src/types/agent'
 import { writeFileSync, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
 
-const outputDir = '/tmp/test-researcher-agent'
+const SUPPORTED_PROVIDERS: SDKProvider[] = ['claude', 'openai', 'copilot']
+
+const MODEL_BY_PROVIDER: Record<string, string> = {
+  claude: 'claude-sonnet-4.5-20250929',
+  openai: 'gpt-5.1',
+  copilot: 'auto',
+}
+
+function parseProvider(): SDKProvider {
+  const args = process.argv.slice(2)
+  const index = args.indexOf('--provider')
+  if (index === -1 || !args[index + 1]) {
+    return 'claude'
+  }
+
+  const value = args[index + 1] as SDKProvider
+  if (!SUPPORTED_PROVIDERS.includes(value)) {
+    console.error(`Unsupported provider: ${value}. Expected one of ${SUPPORTED_PROVIDERS.join(', ')}`)
+    process.exit(1)
+  }
+  return value
+}
+
+const provider = parseProvider()
+const outputDir = `/tmp/test-researcher-agent-${provider}`
 
 // Clean up previous test
 try {
   rmSync(outputDir, { recursive: true, force: true })
 } catch {}
 
-console.log('Generating agent project with knowledge tools...')
+console.log(`Generating ${provider} agent project with knowledge tools...`)
 
 // Build proper config based on research template
 const template = AGENT_TEMPLATES.find(t => t.id === 'research-ops-agent')!
@@ -26,8 +50,8 @@ const config: AgentConfig = {
   description: 'Test researcher agent with knowledge tools',
   domain: 'knowledge',
   templateId: 'research-ops-agent',
-  sdkProvider: 'claude',
-  model: 'claude-sonnet-4.5-20250929',
+  sdkProvider: provider,
+  model: MODEL_BY_PROVIDER[provider],
   tools,
   mcpServers: [],
   customInstructions: '',

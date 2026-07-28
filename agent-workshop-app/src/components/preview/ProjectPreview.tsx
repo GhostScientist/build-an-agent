@@ -375,6 +375,13 @@ export function ProjectPreview({ project, onClose, onDownload }: ProjectPreviewP
                         No build step required! Your agent is ready to run instantly.
                       </p>
                     )}
+                    {project.config.sdkProvider === 'copilot' && (
+                      <p className="mt-4 text-sm text-slate-700 bg-slate-100 p-3 rounded-lg">
+                        Requires Node.js 20.19+ and an active GitHub Copilot subscription. No API key needed —
+                        sign in once with <code className="font-mono">npx @github/copilot</code>, or set{' '}
+                        <code className="font-mono">GITHUB_TOKEN</code>.
+                      </p>
+                    )}
                   </div>
 
                   {/* Share with Community (HuggingFace only) */}

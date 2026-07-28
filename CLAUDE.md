@@ -4,7 +4,7 @@ Guidance for AI assistants (Claude Code and others) working in this repository.
 
 ## Project Overview
 
-**Agent Workshop** scaffolds custom AI agent projects targeting one of three providers: the **Claude Agent SDK**, the **OpenAI Agents SDK**, or **HuggingFace tiny-agents**. It ships two user-facing products in an npm-workspaces monorepo:
+**Agent Workshop** scaffolds custom AI agent projects targeting one of four providers: the **Claude Agent SDK**, the **OpenAI Agents SDK**, the **GitHub Copilot SDK** (`@github/copilot-sdk`), or **HuggingFace tiny-agents**. It ships two user-facing products in an npm-workspaces monorepo:
 
 - **`agent-workshop-app/`** — a Next.js 14 web UI (visual wizard with live Monaco code preview, downloads a zip). Deployed to Netlify as a static export.
 - **`create-agent-app/`** — an interactive CLI wizard, published to npm as **`build-agent-app`** (`npx build-agent-app@latest my-agent`).
@@ -61,8 +61,9 @@ npm run test:generator       # Generator smoke test (tsx)
 npm run test:generator:all   # Full generator matrix
 npm run test:generator:build # Generated projects compile/build
 npm run test:agents          # Behavioral tests of generated agents — needs live API keys
-npm run test:agents:claude   # (also :openai, :quick variants)
-npm run generate:agents      # Generate all agent variants (also :claude / :openai)
+npm run test:agents:claude   # (also :openai, :copilot, :quick variants)
+npm run generate:agents      # Generate all agent variants (also :claude / :openai / :copilot)
+npm run test:generator:build # Generate + npm install + build (accepts --provider claude|openai|copilot)
 ```
 
 ### CLI (`cd create-agent-app`)
@@ -77,11 +78,11 @@ There is no root-level test or build script; run commands inside the relevant wo
 
 ## Architecture
 
-**CLI flow:** `create-agent-app/src/index.ts` defines the `build-agent-app [project-name]` commander program and runs an Enquirer wizard (provider → domain → template → model → tools/permissions, or a shorter 3-step HuggingFace path). It assembles an `AgentConfig` and calls `generateProject()` in `src/generator/index.ts`, which delegates to `webapp-generator.ts` (Claude/OpenAI) or `generateTinyAgentProject` (HuggingFace), writes the files, and runs `npm install` in the target.
+**CLI flow:** `create-agent-app/src/index.ts` defines the `build-agent-app [project-name]` commander program and runs an Enquirer wizard (provider → domain → template → model → tools/permissions, or a shorter 3-step HuggingFace path). It assembles an `AgentConfig` and calls `generateProject()` in `src/generator/index.ts`, which delegates to `webapp-generator.ts` (Claude/OpenAI/Copilot) or `generateTinyAgentProject` (HuggingFace), writes the files, and runs `npm install` in the target.
 
 **Web flow:** `components/wizard/AgentBuilder.tsx` steps through the same choices, holding state in the zustand store (`src/lib/store.ts`, typed by `src/types/agent.ts`). `src/lib/generator.ts` produces the files, previewed in Monaco and downloaded via JSZip/file-saver.
 
-**Shared type model** (both packages): `AgentDomain` (development | business | creative | data | knowledge), `SDKProvider` (claude | openai | huggingface), `PermissionLevel` (restrictive | balanced | permissive), `AgentTool`, `MCPServer` (stdio | http | sse | sdk), `AgentConfig`, `GeneratedProject`/`GeneratedFile`.
+**Shared type model** (both packages): `AgentDomain` (development | business | creative | data | knowledge), `SDKProvider` (claude | openai | huggingface | copilot), `PermissionLevel` (restrictive | balanced | permissive), `AgentTool`, `MCPServer` (stdio | http | sse | sdk), `AgentConfig`, `GeneratedProject`/`GeneratedFile`.
 
 ## ⚠ Critical Convention: Duplicated Generators
 
@@ -93,6 +94,18 @@ The code-generation engine exists **twice** and must be kept in sync:
 | `agent-workshop-app/src/types/agent.ts` | `create-agent-app/src/types.ts` |
 
 When changing agent-generation logic or the type model, apply the change to **both** files. `create-agent-app/src/types.ts` explicitly documents this mirroring.
+
+## Provider Notes: GitHub Copilot
+
+The `copilot` provider goes through the same full wizard flow and generator as Claude/OpenAI, with a few deliberate differences implemented in `generateCopilotAgent()`:
+
+- **No tool wrapper files.** File, command, and web tools (`COPILOT_WRAPPER_TOOL_CATEGORIES`) are served by the runtime's built-ins (`view`, `edit`, `create`, `bash`, `grep`, `glob`, `web_fetch`), so `src/tools/{file-operations,command-runner,web-tools}.ts` are not emitted. Knowledge tools *are* still generated and registered via `defineTool` — Copilot has no equivalent.
+- **Wizard tool selection is a policy**, enforced twice: `excludedTools` patterns (`getCopilotExcludedTools()`) plus hardcoded rejections in `onPermissionRequest`.
+- **No zod.** `defineTool` parameters use raw JSON Schema; handler args are cast.
+- **Auth is soft** — a missing token warns instead of exiting, because the SDK falls back to a stored Copilot CLI / `gh` CLI login.
+- **`shutdown()` is required.** The SDK spawns a child CLI process; the generated `src/cli.ts` wraps its run in `try/finally { await agent.shutdown() }` (Copilot only) or the process hangs on exit.
+- **Instructions are auto-loaded.** The runtime reads `.github/copilot-instructions.md`, `AGENTS.md`, and `CLAUDE.md` from cwd, so generated memory is not re-injected into `systemMessage` (skills/commands/subagents still are).
+- **Node `^20.19.0 || >=22.12.0`** in the generated `package.json`, higher than other providers.
 
 ## Conventions
 
@@ -119,6 +132,7 @@ No `.env` files are committed (`.env*` is gitignored). Keys are only needed for 
 - `ANTHROPIC_API_KEY` — Claude agents
 - `OPENAI_API_KEY` — OpenAI agents
 - `HF_TOKEN` (fallback `HUGGINGFACE_TOKEN`) — HuggingFace tiny-agents
+- `GITHUB_TOKEN` (also `GITHUB_COPILOT_API_TOKEN` / `COPILOT_GITHUB_TOKEN` / `GH_TOKEN`) — GitHub Copilot agents. Optional: the SDK falls back to a stored Copilot CLI or `gh` CLI login.
 
 Generated projects include their own `.env.example`.
 

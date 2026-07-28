@@ -64,6 +64,34 @@ export const HUGGINGFACE_MODELS: ModelChoice[] = [
   },
 ];
 
+export const COPILOT_MODELS: ModelChoice[] = [
+  {
+    value: 'auto',
+    name: 'Auto',
+    hint: 'recommended - runtime picks the best model',
+  },
+  {
+    value: 'claude-sonnet-4.5',
+    name: 'Claude Sonnet 4.5',
+    hint: 'balanced coding model',
+  },
+  {
+    value: 'gpt-5',
+    name: 'GPT-5',
+    hint: 'frontier reasoning',
+  },
+  {
+    value: 'gpt-5.4',
+    name: 'GPT-5.4',
+    hint: 'latest general purpose',
+  },
+  {
+    value: 'gpt-5.2-codex',
+    name: 'GPT-5.2 Codex',
+    hint: 'long-running coding tasks',
+  },
+];
+
 export function getModelsForProvider(provider: SDKProvider): ModelChoice[] {
   switch (provider) {
     case 'claude':
@@ -72,6 +100,8 @@ export function getModelsForProvider(provider: SDKProvider): ModelChoice[] {
       return OPENAI_MODELS;
     case 'huggingface':
       return HUGGINGFACE_MODELS;
+    case 'copilot':
+      return COPILOT_MODELS;
     default:
       return CLAUDE_MODELS;
   }

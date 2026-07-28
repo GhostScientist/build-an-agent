@@ -3,6 +3,10 @@ import { AGENT_TEMPLATES } from '@/types/agent'
 
 const KNOWLEDGE_TOOL_IDS = ['doc-ingest', 'table-extract', 'source-notes', 'local-rag']
 
+// Copilot relies on the SDK runtime's own built-in tools for file, command and web
+// work, so no wrapper tool classes are generated for those categories.
+const COPILOT_WRAPPER_TOOL_CATEGORIES = ['file', 'command', 'web']
+
 // Helper function to get the correct API key environment variable name for each provider
 function getApiKeyEnvVar(provider: string | undefined): string {
   switch (provider) {
@@ -12,6 +16,8 @@ function getApiKeyEnvVar(provider: string | undefined): string {
       return 'OPENAI_API_KEY';
     case 'huggingface':
       return 'HF_TOKEN';
+    case 'copilot':
+      return 'GITHUB_TOKEN';
     default:
       return 'ANTHROPIC_API_KEY';
   }
@@ -111,7 +117,10 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
   })
 
   // Generate tool implementations based on enabled tools
+  // Copilot delegates file/command/web work to the SDK's built-in tools, so those
+  // wrapper classes are intentionally not emitted for that provider.
   const toolCategories = Array.from(new Set(enabledTools.map(tool => tool.category)))
+    .filter(category => config.sdkProvider !== 'copilot' || !COPILOT_WRAPPER_TOOL_CATEGORIES.includes(category))
   for (const category of toolCategories) {
     const toolFile = generateToolImplementation({ category }, config)
     if (toolFile) {
@@ -380,7 +389,7 @@ function generatePackageJson(config: AgentConfig): string {
     keywords: [
       'ai-agent',
       'cli',
-      config.sdkProvider === 'claude' ? 'claude' : config.sdkProvider === 'openai' ? 'openai' : 'ai',
+      config.sdkProvider === 'claude' ? 'claude' : config.sdkProvider === 'openai' ? 'openai' : config.sdkProvider === 'copilot' ? 'copilot' : 'ai',
       'automation',
       config.domain,
       'assistant'
@@ -389,7 +398,8 @@ function generatePackageJson(config: AgentConfig): string {
     license: config.license || 'MIT',
     type: 'module',
     engines: {
-      node: '>=18.0.0'
+      // @github/copilot-sdk requires a newer Node runtime than the other providers
+      node: config.sdkProvider === 'copilot' ? '^20.19.0 || >=22.12.0' : '>=18.0.0'
     },
     files: [
       'dist/**/*',
@@ -433,7 +443,9 @@ function getDependencies(config: AgentConfig): Record<string, string> {
     'ora': '^8.0.1',
     'inquirer': '^9.2.12',
     'inquirer-autocomplete-prompt': '^3.0.1',
-    'dotenv': '^16.3.1'
+    'dotenv': '^16.3.1',
+    // Required by the always-generated src/workflows.ts
+    'glob': '^10.3.10'
   }
   
   // Add SDK-specific dependencies
@@ -451,21 +463,22 @@ function getDependencies(config: AgentConfig): Record<string, string> {
       baseDeps['@modelcontextprotocol/sdk'] = '^1.11.4'
       baseDeps['zod'] = '^3.25.0'
       break
+    case 'copilot':
+      // Bundles the Copilot CLI, so no separate runtime install is required.
+      baseDeps['@github/copilot-sdk'] = '^1.0.8'
+      break
   }
   
   // Add tool-specific dependencies
   const enabledTools = config.tools.filter(t => t.enabled)
-  
-  if (enabledTools.some(t => t.category === 'file')) {
-    baseDeps['glob'] = '^10.3.10'
-  }
-  
-  if (enabledTools.some(t => t.category === 'web')) {
+  const usesWrapperTools = config.sdkProvider !== 'copilot'
+
+  if (usesWrapperTools && enabledTools.some(t => t.category === 'web')) {
     baseDeps['axios'] = '^1.6.0'
     baseDeps['cheerio'] = '^1.0.0-rc.12'
   }
-  
-  if (enabledTools.some(t => t.category === 'database')) {
+
+  if (usesWrapperTools && enabledTools.some(t => t.category === 'database')) {
     baseDeps['better-sqlite3'] = '^9.0.0'
   }
   
@@ -522,6 +535,8 @@ function generateCLI(config: AgentConfig, enabledTools: AgentConfig['tools']): s
   const hasFileOps = enabledTools.some(t => t.category === 'file')
   const hasCommands = enabledTools.some(t => t.category === 'command')
   const isDARE = false // DARE templates removed
+  const apiKeyEnvVar = getApiKeyEnvVar(config.sdkProvider)
+  const isCopilot = config.sdkProvider === 'copilot'
 
   return `#!/usr/bin/env node
 
@@ -571,17 +586,26 @@ program
     if (options.show) {
       const config = configManager.get();
       console.log(chalk.cyan('\\n📋 Current Configuration:'));
-      console.log(chalk.gray('API Key:'), config.apiKey ? '***' + config.apiKey.slice(-4) : chalk.red('Not set'));
-      console.log(chalk.gray('Source:'), process.env.${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY ? 'Environment variable' : 'Config file');
+      console.log(chalk.gray('${isCopilot ? 'GitHub Token' : 'API Key'}:'), config.apiKey ? '***' + config.apiKey.slice(-4) : chalk.red('Not set'));
+      console.log(chalk.gray('Source:'), process.env.${apiKeyEnvVar} ? 'Environment variable' : 'Config file');
       return;
     }
-
+${isCopilot ? `
+    console.log(chalk.yellow('\\n🔐 GitHub Copilot Authentication\\n'));
+    console.log(chalk.white('This agent uses your GitHub Copilot subscription — there is no separate API key.\\n'));
+    console.log(chalk.white('Easiest option: sign in with the Copilot CLI (credentials are reused automatically):\\n'));
+    console.log(chalk.gray('  npx @github/copilot\\n'));
+    console.log(chalk.white('Or provide a GitHub token with Copilot access:\\n'));
+    console.log(chalk.gray('  echo "GITHUB_TOKEN=ghu_your-token-here" > .env\\n'));
+    console.log(chalk.gray('  export GITHUB_TOKEN=ghu_your-token-here\\n'));
+    console.log(chalk.cyan('Also supported: COPILOT_GITHUB_TOKEN, GH_TOKEN, and the gh CLI login.'));
+    console.log(chalk.gray('Note: classic ghp_ tokens are not supported.'));` : `
     console.log(chalk.yellow('\\n🔐 API Key Configuration\\n'));
     console.log(chalk.white('To configure your API key, create a .env file in the project root:\\n'));
-    console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env\\n'));
+    console.log(chalk.gray('  echo "${apiKeyEnvVar}=your-key-here" > .env\\n'));
     console.log(chalk.white('Or set the environment variable directly:\\n'));
-    console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here\\n'));
-    console.log(chalk.cyan('Tip: Copy .env.example to .env and fill in your API key.'));
+    console.log(chalk.gray('  export ${apiKeyEnvVar}=your-key-here\\n'));
+    console.log(chalk.cyan('Tip: Copy .env.example to .env and fill in your API key.'));`}
   });
 
 program
@@ -594,13 +618,16 @@ program
       const configManager = new ConfigManager();
       const config = await configManager.load();
 
-      if (!configManager.hasApiKey()) {
+      if (!configManager.hasApiKey()) {${isCopilot ? `
+        // Not fatal: the Copilot SDK falls back to stored Copilot/gh CLI credentials.
+        console.log(chalk.yellow('⚠️  No GITHUB_TOKEN found — falling back to your Copilot CLI / gh CLI login.'));
+        console.log(chalk.gray('   If authentication fails, run: npx @github/copilot   (or set GITHUB_TOKEN)\\n'));` : `
         console.log(chalk.red('❌ No API key found.'));
         console.log(chalk.yellow('\\nCreate a .env file with your API key:'));
-        console.log(chalk.gray('  echo "${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here" > .env'));
+        console.log(chalk.gray('  echo "${apiKeyEnvVar}=your-key-here" > .env'));
         console.log(chalk.yellow('\\nOr set the environment variable:'));
-        console.log(chalk.gray('  export ${config.sdkProvider?.toUpperCase() || 'ANTHROPIC'}_API_KEY=your-key-here'));
-        process.exit(1);
+        console.log(chalk.gray('  export ${apiKeyEnvVar}=your-key-here'));
+        process.exit(1);`}
       }
 
       const permissionManager = new PermissionManager({ policy: '${config.permissions || 'balanced'}' });
@@ -614,14 +641,26 @@ program
       console.log(chalk.gray('${config.description || 'AI Agent for ' + config.domain}'));
       console.log(chalk.gray(\`📁 Working directory: \${workingDir}\\n\`));
 
-      if (query && options?.plan) {
+      ${isCopilot ? `try {
+        if (query && options?.plan) {
+          // Planning mode with query
+          await handlePlanningMode(agent, query, permissionManager);
+        } else if (query) {
+          await handleSingleQuery(agent, query, options?.verbose);
+        } else {
+          await handleInteractiveMode(agent, permissionManager, options?.verbose);
+        }
+      } finally {
+        // The Copilot SDK spawns a child runtime process — without this the CLI hangs.
+        await agent.shutdown();
+      }` : `if (query && options?.plan) {
         // Planning mode with query
         await handlePlanningMode(agent, query, permissionManager);
       } else if (query) {
         await handleSingleQuery(agent, query, options?.verbose);
       } else {
         await handleInteractiveMode(agent, permissionManager, options?.verbose);
-      }
+      }`}
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -2031,16 +2070,23 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       imports.push(`import { Agent } from '@huggingface/tiny-agents';`)
       imports.push(`import { McpClient } from '@huggingface/mcp-client';`)
       break
+    case 'copilot':
+      imports.push(`import { CopilotClient, defineTool, type CopilotSession, type MCPServerConfig, type PermissionRequestResult, type Tool } from '@github/copilot-sdk';`)
+      break
   }
   
-  if (hasFileOps) {
+  // Copilot uses the SDK runtime's built-in bash/edit/grep/view tools instead of
+  // generated wrapper classes, so only knowledge tools are imported for it.
+  const usesWrapperTools = config.sdkProvider !== 'copilot'
+
+  if (hasFileOps && usesWrapperTools) {
     imports.push(`import { FileOperations } from './tools/file-operations.js';`)
   }
-  if (hasCommands) {
+  if (hasCommands && usesWrapperTools) {
     imports.push(`import { CommandRunner } from './tools/command-runner.js';`)
   }
   // WebTools only needed for non-Claude providers (Claude uses SDK built-in WebSearch/WebFetch)
-  if (hasWeb && config.sdkProvider !== 'claude') {
+  if (hasWeb && usesWrapperTools && config.sdkProvider !== 'claude') {
     imports.push(`import { WebTools } from './tools/web-tools.js';`)
   }
   if (hasKnowledge) {
@@ -2055,6 +2101,8 @@ function generateAgent(config: AgentConfig, enabledTools: AgentConfig['tools'], 
       return generateOpenAIAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     case 'huggingface':
       return generateHuggingFaceAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
+    case 'copilot':
+      return generateCopilotAgent(imports, className, config, enabledTools, template, hasFileOps, hasCommands, hasWeb, hasKnowledge)
     default:
       throw new Error(`Unsupported SDK provider: ${config.sdkProvider}`)
   }
@@ -3012,6 +3060,493 @@ Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
 }`
 }
 
+// =============================================================================
+// GitHub Copilot SDK agent
+// =============================================================================
+// Unlike the other providers, the Copilot runtime ships its own built-in
+// bash/edit/grep/view/read_file tools, so we do not generate wrapper classes for
+// file, command or web work. The wizard's tool selection instead becomes a
+// visibility + permission policy (excludedTools + onPermissionRequest).
+
+/**
+ * Map the wizard's tool selection onto Copilot's built-in tool names so tools the
+ * user did not enable are excluded from the session entirely.
+ */
+function getCopilotExcludedTools(enabledTools: AgentConfig['tools']): string[] {
+  const enabledIds = new Set(enabledTools.map(t => t.id))
+  const enabledCategories = new Set(enabledTools.map(t => t.category))
+  const excluded: string[] = []
+
+  if (!enabledCategories.has('command')) {
+    // read_bash/stop_bash/list_bash only manage sessions started by bash
+    excluded.push('builtin:bash', 'builtin:read_bash', 'builtin:stop_bash', 'builtin:list_bash')
+  }
+
+  const canWrite = enabledIds.has('write-file') || enabledIds.has('edit-file')
+  if (!canWrite) {
+    excluded.push('builtin:edit', 'builtin:edit_file', 'builtin:create')
+  }
+
+  const canRead = enabledIds.has('read-file') || enabledIds.has('find-files') || enabledIds.has('search-files')
+  if (!canRead) {
+    excluded.push('builtin:read_file', 'builtin:view')
+  }
+  if (!enabledIds.has('find-files')) {
+    excluded.push('builtin:glob')
+  }
+  if (!enabledIds.has('search-files')) {
+    excluded.push('builtin:grep')
+  }
+
+  if (!enabledCategories.has('web')) {
+    excluded.push('builtin:web_fetch')
+  }
+
+  return Array.from(new Set(excluded))
+}
+
+function generateCopilotAgent(imports: string[], className: string, config: AgentConfig, enabledTools: AgentConfig['tools'], template: any, hasFileOps: boolean, hasCommands: boolean, hasWeb: boolean, hasKnowledge: boolean): string {
+  const excludedTools = getCopilotExcludedTools(enabledTools)
+  const enabledIds = new Set(enabledTools.map(t => t.id))
+  const allowShell = enabledTools.some(t => t.category === 'command')
+  const allowWrite = enabledIds.has('write-file') || enabledIds.has('edit-file')
+  const allowRead = enabledIds.has('read-file') || enabledIds.has('find-files') || enabledIds.has('search-files')
+  const allowUrl = enabledTools.some(t => t.category === 'web')
+
+  return `${imports.join('\n')}
+import { PermissionManager, type PermissionPolicy } from './permissions.js';
+import { MCPConfigManager } from './mcp-config.js';
+import { loadClaudeConfig, formatSkillsForPrompt, type ClaudeConfig } from './claude-config.js';
+
+export interface ${className}AgentConfig {
+  verbose?: boolean;
+  apiKey?: string;
+  permissionManager?: PermissionManager;
+  permissions?: PermissionPolicy;
+  auditPath?: string;
+  workingDir?: string;
+}
+
+/**
+ * Messages yielded by query(). The shape mirrors the Claude Agent SDK stream so
+ * the CLI renderer stays provider-agnostic.
+ */
+type StreamMessage =
+  | { type: 'stream_event'; event: { type: 'content_block_delta'; delta: { type: 'text_delta'; text: string } } }
+  | { type: 'stream_event'; event: { type: 'content_block_start'; content_block: { type: 'tool_use'; name: string } } }
+  | { type: 'tool_result' }
+  | { type: 'result'; subtype: 'success' | 'error'; result: string };
+
+export class ${className}Agent {
+  private config: ${className}AgentConfig;
+  /** Public so the CLI's workflow executor can share the same policy + audit log. */
+  permissionManager: PermissionManager;${hasKnowledge ? `
+  private knowledgeTools: KnowledgeTools;` : ''}
+  private mcpConfigManager: MCPConfigManager;
+  private claudeConfig: ClaudeConfig;
+  private client?: CopilotClient;
+  private session?: CopilotSession;
+  private started = false;
+
+  constructor(config: ${className}AgentConfig = {}) {
+    this.config = config;
+
+    if (config.apiKey) {
+      process.env.GITHUB_TOKEN = config.apiKey;
+    }
+
+    this.permissionManager = config.permissionManager || new PermissionManager({ policy: config.permissions, auditPath: config.auditPath });${hasKnowledge ? `
+    this.knowledgeTools = new KnowledgeTools(this.permissionManager);` : ''}
+
+    // Initialize MCP config manager
+    this.mcpConfigManager = new MCPConfigManager();
+
+    // Load local agent configuration (skills, commands, subagents)
+    this.claudeConfig = loadClaudeConfig(config.workingDir || process.cwd());
+  }
+
+  /**
+   * Get loaded agent configuration (skills, commands, subagents).
+   */
+  getClaudeConfig(): ClaudeConfig {
+    return this.claudeConfig;
+  }
+
+  /**
+   * Translate .mcp.json entries into Copilot SDK MCP server configuration.
+   */
+  private async loadExternalMcpServers(): Promise<Record<string, MCPServerConfig>> {
+    await this.mcpConfigManager.load();
+    const servers: Record<string, MCPServerConfig> = {};
+
+    for (const [name, serverConfig] of Object.entries(this.mcpConfigManager.getEnabledServers())) {
+      const resolved = this.mcpConfigManager.resolveEnvVariables(serverConfig);
+
+      switch (resolved.type) {
+        case 'stdio':
+          servers[name] = {
+            type: 'local',
+            command: resolved.command,
+            args: resolved.args || [],
+            env: resolved.env || {},
+            tools: ['*']
+          };
+          break;
+        case 'sse':
+        case 'http':
+          servers[name] = {
+            type: resolved.type,
+            url: resolved.url,
+            headers: resolved.headers || {},
+            tools: ['*']
+          };
+          break;
+        case 'sdk':
+          console.warn(\`Warning: MCP server '\${name}' uses the in-process 'sdk' transport, which the Copilot SDK does not support. Skipping.\`);
+          break;
+      }
+    }
+
+    return servers;
+  }
+
+  /**
+   * Route Copilot's runtime permission prompts through the project's
+   * PermissionManager so the configured policy and audit log still apply.
+   */
+  private async handlePermissionRequest(request: { kind: string; [key: string]: unknown }): Promise<PermissionRequestResult> {
+    const deny = (feedback: string): PermissionRequestResult => ({ kind: 'reject', feedback });
+
+    switch (request.kind) {
+      case 'shell': {${allowShell ? `
+        const command = typeof request.fullCommandText === 'string' ? request.fullCommandText : 'unknown command';
+        const response = await this.permissionManager.requestPermission({
+          action: 'run_command',
+          resource: command,
+          details: typeof request.intention === 'string' ? request.intention : undefined
+        });
+        return response.allowed ? { kind: 'approve-once' } : deny('Command execution was denied by the user.');` : `
+        return deny('Command execution is not enabled for this agent.');`}
+      }
+      case 'write': {${allowWrite ? `
+        const fileName = typeof request.fileName === 'string' ? request.fileName : 'unknown file';
+        const response = await this.permissionManager.requestPermission({
+          action: 'write_file',
+          resource: fileName,
+          details: typeof request.intention === 'string' ? request.intention : undefined
+        });
+        return response.allowed ? { kind: 'approve-once' } : deny('File write was denied by the user.');` : `
+        return deny('File modification is not enabled for this agent.');`}
+      }
+      case 'read': {${allowRead ? `
+        const path = typeof request.path === 'string' ? request.path : 'unknown path';
+        const response = await this.permissionManager.requestPermission({
+          action: 'read_file',
+          resource: path,
+          details: typeof request.intention === 'string' ? request.intention : undefined
+        });
+        return response.allowed ? { kind: 'approve-once' } : deny('File read was denied by the user.');` : `
+        return deny('File reading is not enabled for this agent.');`}
+      }
+      case 'url': {${allowUrl ? `
+        const url = typeof request.url === 'string' ? request.url : 'unknown url';
+        const response = await this.permissionManager.requestPermission({
+          action: 'network_request',
+          resource: url,
+          details: typeof request.intention === 'string' ? request.intention : undefined
+        });
+        return response.allowed ? { kind: 'approve-once' } : deny('Network access was denied by the user.');` : `
+        return deny('Web access is not enabled for this agent.');`}
+      }
+      case 'mcp':
+      case 'custom-tool': {
+        const toolName = typeof request.toolName === 'string' ? request.toolName : 'tool';
+        const response = await this.permissionManager.requestPermission({
+          action: 'run_command',
+          resource: toolName,
+          details: 'Tool invocation requested by the agent'
+        });
+        return response.allowed ? { kind: 'approve-once' } : deny(\`Use of \${toolName} was denied by the user.\`);
+      }
+      default:
+        return { kind: 'approve-once' };
+    }
+  }
+${hasKnowledge ? `
+  /**
+   * Knowledge tools have no Copilot built-in equivalent, so they are registered
+   * as custom tools. Raw JSON Schema is used to avoid pulling in a zod dependency.
+   * Permission checks happen inside KnowledgeTools, so skipPermission is set.
+   */
+  private createCustomTools(): Tool[] {
+    const tools: Tool[] = [];
+    const knowledgeToolsEnabled = new Set(${JSON.stringify(enabledTools.filter(t => KNOWLEDGE_TOOL_IDS.includes(t.id)).map(t => t.id))});
+
+    if (knowledgeToolsEnabled.has('doc-ingest')) {
+      tools.push(defineTool('doc_ingest', {
+        description: 'Extract text from documents (pdf, docx, txt)',
+        parameters: {
+          type: 'object',
+          properties: {
+            filePath: { type: 'string', description: 'Path to the document' },
+            captureSources: { type: 'boolean', description: 'Whether to capture source metadata', default: true }
+          },
+          required: ['filePath']
+        },
+        skipPermission: true,
+        handler: async (args) => {
+          const { filePath, captureSources } = args as { filePath: string; captureSources?: boolean };
+          const result = await this.knowledgeTools.extractText(filePath, captureSources ?? true);
+          return result.text;
+        }
+      }));
+    }
+
+    if (knowledgeToolsEnabled.has('table-extract')) {
+      tools.push(defineTool('table_extract', {
+        description: 'Extract tables from documents into CSV/JSON',
+        parameters: {
+          type: 'object',
+          properties: {
+            filePath: { type: 'string', description: 'Path to the document' }
+          },
+          required: ['filePath']
+        },
+        skipPermission: true,
+        handler: async (args) => {
+          const { filePath } = args as { filePath: string };
+          const result = await this.knowledgeTools.extractTables(filePath);
+          const summary = result.tables.length === 0
+            ? 'No tables found in document.'
+            : result.tables.map((t, i) =>
+                \`Table \${i + 1} (\${t.format}):\\n\${t.rows.slice(0, 5).map(r => r.join(' | ')).join('\\n')}\${t.rows.length > 5 ? \`\\n... and \${t.rows.length - 5} more rows\` : ''}\`
+              ).join('\\n\\n');
+          return \`Source: \${result.source}\\n\\n\${summary}\`;
+        }
+      }));
+    }
+
+    if (knowledgeToolsEnabled.has('source-notes')) {
+      tools.push(defineTool('source_notes', {
+        description: 'Append a note with source + citation to the local notebook',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Title for the note' },
+            source: { type: 'string', description: 'Source URL or path' },
+            content: { type: 'string', description: 'Summary or quote' }
+          },
+          required: ['title', 'source', 'content']
+        },
+        skipPermission: true,
+        handler: async (args) => {
+          const { title, source, content } = args as { title: string; source: string; content: string };
+          return this.knowledgeTools.saveNote(title, source, content);
+        }
+      }));
+    }
+
+    if (knowledgeToolsEnabled.has('local-rag')) {
+      tools.push(defineTool('local_retrieval', {
+        description: 'Search local notes/corpus for grounded snippets',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query' },
+            limit: { type: 'number', description: 'Max results' }
+          },
+          required: ['query']
+        },
+        skipPermission: true,
+        handler: async (args) => {
+          const { query, limit } = args as { query: string; limit?: number };
+          return this.knowledgeTools.searchLocal(query, limit ?? 5);
+        }
+      }));
+    }
+
+    return tools;
+  }
+` : ''}
+  /**
+   * Lazily start the Copilot client and create a long-lived session.
+   * The session is stateful, so it is reused across turns.
+   */
+  private async ensureSession(): Promise<CopilotSession> {
+    if (this.session) {
+      return this.session;
+    }
+
+    const mcpServers = await this.loadExternalMcpServers();
+
+    this.client = new CopilotClient({
+      workingDirectory: this.config.workingDir || process.cwd(),
+      logLevel: this.config.verbose ? 'info' : 'error'
+    });
+
+    await this.client.start();
+    this.started = true;
+
+    this.session = await this.client.createSession({
+      model: '${config.model || 'auto'}',
+      streaming: true,
+      systemMessage: { content: this.buildSystemPrompt() },${hasKnowledge ? `
+      tools: this.createCustomTools(),` : ''}
+      ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),${excludedTools.length > 0 ? `
+      excludedTools: ${JSON.stringify(excludedTools)},` : ''}
+      onPermissionRequest: (request) => this.handlePermissionRequest(request as unknown as { kind: string; [key: string]: unknown })
+    });
+
+    return this.session;
+  }
+
+  /**
+   * Stop the Copilot runtime. The SDK spawns a child process, so this must be
+   * called before the process exits or the CLI will hang.
+   */
+  async shutdown(): Promise<void> {
+    try {
+      await this.session?.disconnect();
+    } catch {
+      // Session may already be gone; nothing to clean up.
+    }
+    this.session = undefined;
+
+    if (this.started) {
+      try {
+        await this.client?.stop();
+      } catch {
+        // Ignore shutdown races.
+      }
+    }
+    this.client = undefined;
+    this.started = false;
+  }
+
+  async *query(userQuery: string, history: Array<{role: string, content: string}> = []): AsyncGenerator<StreamMessage> {
+    const isFirstTurn = !this.session;
+    const session = await this.ensureSession();
+
+    // The Copilot session keeps its own history, so external history is only
+    // injected on the very first turn.
+    let effectivePrompt = userQuery;
+    if (history.length > 0 && isFirstTurn) {
+      const contextLines = history.map(h =>
+        \`\${h.role === 'user' ? 'User' : 'Assistant'}: \${h.content}\`
+      ).join('\\n\\n');
+      effectivePrompt = \`Previous conversation:\\n\${contextLines}\\n\\nUser: \${userQuery}\`;
+    }
+
+    // Bridge the SDK's event callbacks into an async generator via a push queue.
+    const queue: StreamMessage[] = [];
+    let notify: (() => void) | undefined;
+    let finished = false;
+
+    const push = (message: StreamMessage) => {
+      queue.push(message);
+      notify?.();
+    };
+
+    const unsubscribers = [
+      session.on('assistant.message_delta', (event) => {
+        push({
+          type: 'stream_event',
+          event: { type: 'content_block_delta', delta: { type: 'text_delta', text: event.data.deltaContent } }
+        });
+      }),
+      session.on('tool.execution_start', (event) => {
+        push({
+          type: 'stream_event',
+          event: { type: 'content_block_start', content_block: { type: 'tool_use', name: event.data.toolName } }
+        });
+      }),
+      session.on('tool.execution_complete', () => {
+        push({ type: 'tool_result' });
+      })
+    ];
+
+    // 10 minutes: agent turns routinely exceed the SDK's 60s default.
+    const completion = session.sendAndWait({ prompt: effectivePrompt }, 600_000)
+      .then((response) => {
+        push({ type: 'result', subtype: 'success', result: response?.data.content ?? '' });
+      })
+      .catch((error: unknown) => {
+        push({
+          type: 'result',
+          subtype: 'error',
+          result: error instanceof Error ? error.message : String(error)
+        });
+      })
+      .finally(() => {
+        finished = true;
+        notify?.();
+      });
+
+    try {
+      while (true) {
+        while (queue.length > 0) {
+          yield queue.shift() as StreamMessage;
+        }
+        if (finished) {
+          break;
+        }
+        await new Promise<void>((resolve) => { notify = resolve; });
+        notify = undefined;
+      }
+      // Drain anything pushed between the last check and completion.
+      while (queue.length > 0) {
+        yield queue.shift() as StreamMessage;
+      }
+    } finally {
+      for (const unsubscribe of unsubscribers) {
+        unsubscribe();
+      }
+      await completion;
+    }
+  }
+
+  private buildSystemPrompt(): string {
+    // Note: the Copilot runtime automatically loads .github/copilot-instructions.md,
+    // AGENTS.md and CLAUDE.md from the working directory, so project memory is not
+    // duplicated here. Skills and commands are injected because the runtime does
+    // not discover them.
+    const skillsSection = this.claudeConfig.skills.length > 0
+      ? \`## Available Skills:\\n\${formatSkillsForPrompt(this.claudeConfig.skills)}\\n\\nWhen the user asks you to use a skill, apply the skill's instructions to the current context.\\n\\n\`
+      : '';
+
+    const subagentsSection = this.claudeConfig.subagents.length > 0
+      ? '## Available Subagents:\\n' + this.claudeConfig.subagents.map(a => '- **' + a.name + '**: ' + a.description).join('\\n') + '\\n\\nYou can delegate specialized tasks to these subagents when appropriate.\\n\\n'
+      : '';
+
+    const commandsSection = this.claudeConfig.commands.length > 0
+      ? '## Slash Commands:\\nThe user can invoke these commands with /command-name:\\n' + this.claudeConfig.commands.map(c => '- **/' + c.name + '**: ' + (c.description || 'No description')).join('\\n') + '\\n\\n'
+      : '';
+
+    return \`You are ${config.name}, a specialized AI assistant for ${config.domain}.
+
+${config.customInstructions || template?.documentation || ''}
+
+## Your Capabilities:
+${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')}
+
+\${skillsSection}\${subagentsSection}\${commandsSection}## Instructions:
+${config.customInstructions || '- Provide helpful, accurate, and actionable assistance\n- Use your available tools when appropriate\n- Be thorough and explain your reasoning'}${hasKnowledge ? '\n- Track and cite sources when summarizing. Keep responses grounded in retrieved text.' : ''}
+
+Always be helpful, accurate, and focused on ${config.domain} tasks.\`;
+  }${hasKnowledge ? `
+
+  // Knowledge helpers
+  async extractDocument(filePath: string): Promise<string> {
+    const result = await this.knowledgeTools.extractText(filePath, true);
+    return result.text;
+  }
+
+  async retrieveLocal(query: string, limit = 5): Promise<string> {
+    return this.knowledgeTools.searchLocal(query, limit);
+  }` : ''}
+}`
+}
+
 function generateConfig(config: AgentConfig): string {
   return `import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -3037,9 +3572,17 @@ export class ConfigManager {
     }
 
     // Override with environment variables
-    if (process.env.${getApiKeyEnvVar(config.sdkProvider)}) {
+    ${config.sdkProvider === 'copilot' ? `// The Copilot SDK accepts several token env vars; mirror its lookup order.
+    const tokenEnvVars = ['GITHUB_COPILOT_API_TOKEN', 'COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'];
+    for (const envVar of tokenEnvVars) {
+      const value = process.env[envVar];
+      if (value) {
+        this.config.apiKey = value;
+        break;
+      }
+    }` : `if (process.env.${getApiKeyEnvVar(config.sdkProvider)}) {
       this.config.apiKey = process.env.${getApiKeyEnvVar(config.sdkProvider)};
-    }
+    }`}
 
     return this.config;
   }
@@ -4386,12 +4929,29 @@ ${enabledTools.map(tool => `- **${tool.name}**: ${tool.description}`).join('\n')
 - Permission policy: ${config.permissions || 'balanced'}
 - Audit log: stored locally at \`~/.${config.projectName}/audit.log\`
 - **Workspace sandboxing**: All file operations are restricted to the current working directory
+${config.sdkProvider === 'copilot' ? `
+### Tooling model
 
+This agent runs on the GitHub Copilot agent runtime, which ships its own built-in
+file, search and shell tools (\`read_file\`, \`view\`, \`glob\`, \`grep\`, \`edit\`, \`bash\`, …).
+Rather than reimplementing them, the tools you did **not** enable in the wizard are
+excluded from the session and denied at the permission layer, so the permission policy
+above still governs every read, write, command and network request.
+${enabledTools.some(t => ['doc-ingest', 'table-extract', 'source-notes', 'local-rag'].includes(t.id)) ? `
+Knowledge tools have no Copilot built-in equivalent, so they are registered as custom
+tools in \`src/agent.ts\` and implemented in \`src/tools/knowledge-tools.ts\`.
+` : ''}
+### Project instructions
+
+The Copilot runtime automatically reads \`.github/copilot-instructions.md\`, \`AGENTS.md\`
+and \`CLAUDE.md\` from the directory you run the agent in. Use those files to give the
+agent project-specific context — no code changes required.
+` : ''}
 ## Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js ${config.sdkProvider === 'copilot' ? '>= 20.19.0 (or >= 22.12.0)' : '>= 18.0.0'}
 - npm or yarn
-- ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : 'API key'}
+- ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : config.sdkProvider === 'copilot' ? 'An active GitHub Copilot subscription (no API key needed)' : 'API key'}
 
 ## Installation
 
@@ -4423,18 +4983,40 @@ npm start
 \`\`\`
 
 ## Configuration
+${config.sdkProvider === 'copilot' ? `
+This agent authenticates with your GitHub Copilot subscription — there is no API key.
 
+**Easiest option** — sign in once with the Copilot CLI; the SDK reuses those credentials:
+
+\`\`\`bash
+npx @github/copilot
+\`\`\`
+
+**Or** provide a GitHub token with Copilot access:
+
+\`\`\`bash
+echo "GITHUB_TOKEN=ghu_your_token_here" > .env
+\`\`\`
+
+\`\`\`bash
+export GITHUB_TOKEN=ghu_your_token_here
+\`\`\`
+
+Tokens are resolved in this order: \`GITHUB_COPILOT_API_TOKEN\` → \`COPILOT_GITHUB_TOKEN\` →
+\`GH_TOKEN\` → \`GITHUB_TOKEN\` → stored Copilot CLI login → \`gh\` CLI login.
+Supported token prefixes are \`gho_\`, \`ghu_\` and \`github_pat_\`; classic \`ghp_\` tokens are not supported.
+` : `
 Create a \`.env\` file in any directory where you want to use the agent:
 
 \`\`\`bash
-echo "${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here" > .env
+echo "${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here" > .env
 \`\`\`
 
 Or set the environment variable:
 \`\`\`bash
-export ${config.sdkProvider?.toUpperCase()}_API_KEY=your_api_key_here
+export ${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here
 \`\`\`
-
+`}
 **Note:** When installed globally, the agent loads \`.env\` from your current working directory.
 
 ## Usage
@@ -4611,9 +5193,27 @@ function generateEnvExample(config: AgentConfig): string {
     ? `\n# MCP Server Environment Variables\n${mcpEnvVars.map(v => `# ${v}=your_${v.toLowerCase()}_here`).join('\n')}\n`
     : '';
 
-  return `# API Configuration
-${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here
+  const credentialSection = config.sdkProvider === 'copilot'
+    ? `# GitHub Copilot Authentication
+#
+# This agent uses your GitHub Copilot subscription — there is no separate API key.
+# If you are already signed in with the Copilot CLI ("npx @github/copilot") or the
+# gh CLI, you can leave everything below commented out.
+#
+# Otherwise provide a GitHub token that has Copilot access. Supported prefixes:
+# gho_, ghu_, github_pat_ (classic ghp_ tokens are NOT supported).
+GITHUB_TOKEN=your_github_token_here
 
+# Alternatives, checked in this order before GITHUB_TOKEN:
+# GITHUB_COPILOT_API_TOKEN=
+# COPILOT_GITHUB_TOKEN=
+# GH_TOKEN=
+`
+    : `# API Configuration
+${getApiKeyEnvVar(config.sdkProvider)}=your_api_key_here
+`;
+
+  return `${credentialSection}
 # Agent Settings
 VERBOSE=false
 LOG_LEVEL=info

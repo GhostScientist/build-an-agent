@@ -29,8 +29,8 @@ export const styles = {
 export function printHeader(): void {
   console.log();
   console.log(styles.brand('   ╔════════════════════════════════════════════════╗'));
-  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI                        ') + styles.brand('║'));
-  console.log(styles.brand('   ║') + chalk.dim('     Build AI agents with Claude/OpenAI/HF  ') + styles.brand('║'));
+  console.log(styles.brand('   ║') + chalk.bold.white('     Agent Workshop CLI                         ') + styles.brand('║'));
+  console.log(styles.brand('   ║') + chalk.dim('     Build agents with Claude/OpenAI/Copilot/HF ') + styles.brand('║'));
   console.log(styles.brand('   ╚════════════════════════════════════════════════╝'));
   console.log();
 }
@@ -55,6 +55,18 @@ export function printSuccess(projectName: string, provider: string): void {
     console.log(styles.dim('   → Go to https://huggingface.co/datasets/tiny-agents/tiny-agents'));
     console.log(styles.dim('   → Click Community → New Pull Request'));
     console.log(styles.dim('   → Upload your agent folder and submit'));
+  } else if (provider === 'copilot') {
+    console.log(`   ${styles.highlight('cd')} ${projectName}`);
+    console.log(`   ${styles.highlight('npm run')} build`);
+    console.log(`   ${styles.highlight('npm')} start`);
+    console.log();
+    console.log(styles.dim('   Authentication uses your GitHub Copilot subscription (no API key).'));
+    console.log(styles.dim('   → Already signed in with the Copilot CLI or gh CLI? Nothing else to do.'));
+    console.log(styles.dim('   → Otherwise: cp .env.example .env and set GITHUB_TOKEN'));
+    console.log(styles.dim('   → Requires Node.js 20.19+ (or 22.12+)'));
+    console.log();
+    console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
+    console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
   } else {
     console.log(`   ${styles.highlight('cd')} ${projectName}`);
     // Claude/OpenAI - full TypeScript app

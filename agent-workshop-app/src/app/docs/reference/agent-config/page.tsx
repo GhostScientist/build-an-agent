@@ -117,7 +117,7 @@ export default function AgentConfigPage() {
             <td><code>sdkProvider</code></td>
             <td>SDKProvider</td>
             <td>Yes</td>
-            <td>AI provider (claude or openai)</td>
+            <td>AI provider (claude, openai, copilot, or huggingface)</td>
           </tr>
           <tr>
             <td><code>model</code></td>
@@ -129,15 +129,16 @@ export default function AgentConfigPage() {
       </table>
 
       <p>
-        <strong>Note:</strong> API keys are configured via environment variables
-        (<code>ANTHROPIC_API_KEY</code> or <code>OPENAI_API_KEY</code>) when
-        running the generated agent.
+        <strong>Note:</strong> Credentials are configured via environment variables
+        (<code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or{' '}
+        <code>GITHUB_TOKEN</code>) when running the generated agent. Copilot agents can
+        also reuse an existing Copilot CLI or <code>gh</code> CLI login.
       </p>
 
       <h4>SDKProvider</h4>
       <CodeBlock
         language="typescript"
-        code={`type SDKProvider = 'claude' | 'openai';`}
+        code={`type SDKProvider = 'claude' | 'openai' | 'huggingface' | 'copilot';`}
       />
 
       <h3>Capabilities</h3>

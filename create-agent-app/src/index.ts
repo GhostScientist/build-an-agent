@@ -20,7 +20,7 @@ async function main() {
 
   program
     .name('build-agent-app')
-    .description('Create AI agents with the Claude Agent SDK or OpenAI Agents SDK')
+    .description('Create AI agents with the Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, or HuggingFace tiny-agents')
     .version(VERSION, '-v, --version')
     .argument('[project-name]', 'Name of the project')
     .action(async (projectNameArg?: string) => {
@@ -87,7 +87,7 @@ async function main() {
           };
         } else {
           // ============================================
-          // CLAUDE/OPENAI BRANCH: Full wizard flow
+          // CLAUDE/OPENAI/COPILOT BRANCH: Full wizard flow
           // ============================================
 
           // Step 3: Domain selection

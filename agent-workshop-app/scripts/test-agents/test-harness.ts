@@ -259,12 +259,22 @@ export async function ensureBuilt(agentDir: string, verbose = false): Promise<bo
 /**
  * Check if required API keys are available
  */
-export function checkApiKeys(provider: 'claude' | 'openai'): { available: boolean; key?: string } {
+export function checkApiKeys(provider: 'claude' | 'openai' | 'copilot'): { available: boolean; key?: string } {
   if (provider === 'claude') {
     const key = process.env.ANTHROPIC_API_KEY
     return { available: !!key, key }
-  } else {
-    const key = process.env.OPENAI_API_KEY
-    return { available: !!key, key }
   }
+
+  if (provider === 'copilot') {
+    // Copilot has no API key: a token is optional because the SDK falls back to
+    // the stored Copilot CLI / gh CLI login.
+    const key = process.env.GITHUB_COPILOT_API_TOKEN
+      || process.env.COPILOT_GITHUB_TOKEN
+      || process.env.GH_TOKEN
+      || process.env.GITHUB_TOKEN
+    return { available: true, key }
+  }
+
+  const key = process.env.OPENAI_API_KEY
+  return { available: !!key, key }
 }
