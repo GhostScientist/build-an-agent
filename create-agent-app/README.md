@@ -4,6 +4,8 @@ Create AI agents with the Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SD
 
 ## Quick Start
 
+Use Node.js 22.12+ and choose Claude, OpenAI, or Copilot for this TypeScript flow:
+
 ```bash
 npx build-agent-app@latest my-agent
 cd my-agent
@@ -12,17 +14,26 @@ npm run build
 npm start
 ```
 
+Copilot requires a supported login/token with Copilot access; usage limits and charges apply.
+For HuggingFace, follow the generated instructions to configure inference and run
+`npx @huggingface/tiny-agents run .` instead. No TypeScript build is generated on that path.
+
 ## Interactive Wizard
 
-The CLI guides you through a 6-step process:
+The full TypeScript wizard asks for:
 
 1. **Project Name** - Name your agent project
-2. **Domain** - Choose your agent's area of expertise
+2. **Provider** - Claude, OpenAI, Copilot, or the shorter HuggingFace configuration flow
+3. **Domain** - Choose your agent's area of expertise
    - Development, Business, Creative, Data, or Knowledge
-3. **Template** - Select a pre-configured template or start from scratch
-4. **SDK & Model** - Choose Claude (Anthropic), OpenAI, or GitHub Copilot with your preferred model
-5. **Tools & Permissions** - Enable capabilities and set security level
-6. **Project Details** - Author name and license
+4. **Template** - Select a pre-configured template or start from scratch
+5. **Model** - Select a curated example; check availability and pricing with your provider
+6. **Tools & Permissions** - Enable capabilities and set security level
+7. **Project Details** - Author name and license
+
+HuggingFace instead asks for agent details, a model, and MCP servers. Edit agent.json after
+generation for a custom model or endpoint. It produces
+configuration files, not the TypeScript project below.
 
 ## Example
 
@@ -35,9 +46,9 @@ $ npx build-agent-app
    ╚════════════════════════════════════════════════╝
 
 ? What is your project name? › my-agent
+? Which AI provider? › Claude (Anthropic)
 ? What domain is your agent for? › Development
 ? Select a template: › Code Review Agent
-? Which AI provider? › Claude (Anthropic)
 ? Select model: › Claude Sonnet 4.5 (recommended)
 ? Permission level: › Balanced
 ? Enable tools: › read-file, find-files, search-files, git-operations
@@ -65,7 +76,8 @@ $ npx build-agent-app
 
 ## Generated Project
 
-Your agent project includes:
+Claude, OpenAI, and Copilot starters include files like the following (tool files vary by
+provider; Copilot uses runtime built-ins for file, shell, and web operations):
 
 ```
 my-agent/
@@ -93,10 +105,11 @@ my-agent/
 
 ## Requirements
 
-- Node.js 18+ (20.19+ for GitHub Copilot agents)
+- Node.js 22.12+; also check the generated `package.json`
 - An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/),
   or an active [GitHub Copilot](https://github.com/features/copilot) subscription
   (sign in once with `npx @github/copilot` — no API key needed)
+- HuggingFace needs inference access and any configured MCP server dependencies/credentials
 
 ## Domains
 
@@ -112,8 +125,20 @@ my-agent/
 
 MCP (Model Context Protocol) servers extend your agent with additional capabilities. Configure them after generation:
 
+The OpenAI scaffold currently writes MCP configuration but does not connect it to the
+agent runtime; add the SDK connection lifecycle yourself before relying on those tools.
+
 - Visit [agent-workshop.dev/docs/features/mcp-servers](https://agent-workshop.dev/docs/features/mcp-servers)
 - Or use the web builder at [agent-workshop.dev](https://agent-workshop.dev)
+
+## Learn by Building
+
+The CLI and web UI are learning scaffolds, not hosted agents or production certification.
+Follow the [learning path](https://agent-workshop.dev/docs/concepts#learning-path):
+establish a plain-model baseline, inspect tool calls, test denied actions in a disposable
+workspace, add one tool, then compare correctness, latency, and usage on fixed test cases.
+Permission settings do not replace a sandbox, and SDK features such as tracing or handoffs
+are not automatically integrated just because the SDK supports them.
 
 ## License
 

@@ -16,7 +16,7 @@ export const docsNavigation: NavSection[] = [
     items: [
       { title: 'Introduction', href: '/docs' },
       { title: 'Quick Start', href: '/docs/quick-start' },
-      { title: 'Core Concepts', href: '/docs/concepts' },
+      { title: 'Learning Path & Concepts', href: '/docs/concepts' },
     ],
   },
   {

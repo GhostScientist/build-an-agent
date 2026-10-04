@@ -47,9 +47,9 @@ const baseDeps = {
 
 // SDK-specific dependencies
 const sdkDeps = {
-  claude: { '@anthropic-ai/claude-code': '^0.1.53' },
-  openai: { '@openai/agents': '^0.1.0', 'zod': '^3.0.0' },
-  copilot: { '@github/copilot-sdk': '^1.0.8' }
+  claude: { '@anthropic-ai/claude-agent-sdk': '^0.3.289' },
+  openai: { '@openai/agents': '^0.18.0', 'zod': '^4.6.5' },
+  copilot: { '@github/copilot-sdk': '^1.0.16' }
 };
 
 // Tool-specific dependencies

@@ -1,6 +1,17 @@
 {
   "name": "agent-workshop",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.28"
+    },
+    "ts-node": {
+      "diff": "^4.0.4"
+    }
+  },
   "workspaces": [
     "agent-workshop-app",
     "create-agent-app"

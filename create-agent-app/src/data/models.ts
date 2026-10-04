@@ -2,37 +2,37 @@ import type { SDKProvider, ModelChoice } from '../types.js';
 
 export const CLAUDE_MODELS: ModelChoice[] = [
   {
-    value: 'claude-sonnet-4-5-20250514',
+    value: 'claude-sonnet-4-5-20250929',
     name: 'Claude Sonnet 4.5',
     hint: 'recommended',
   },
   {
-    value: 'claude-haiku-4-5-20250514',
+    value: 'claude-haiku-4-5-20251001',
     name: 'Claude Haiku 4.5',
     hint: 'faster',
   },
   {
-    value: 'claude-opus-4-20250514',
-    name: 'Claude Opus 4',
-    hint: 'most capable',
+    value: 'claude-opus-4-1-20250805',
+    name: 'Claude Opus 4.1',
+    hint: 'reasoning experiments',
   },
 ];
 
 export const OPENAI_MODELS: ModelChoice[] = [
   {
-    value: 'gpt-4.1-2025-04-14',
-    name: 'GPT-4.1',
+    value: 'gpt-5.1',
+    name: 'GPT-5.1',
     hint: 'recommended',
   },
   {
-    value: 'gpt-4.1-mini-2025-04-14',
-    name: 'GPT-4.1 Mini',
+    value: 'gpt-5-mini',
+    name: 'GPT-5 mini',
     hint: 'faster',
   },
   {
-    value: 'gpt-4.1-nano-2025-04-14',
-    name: 'GPT-4.1 Nano',
-    hint: 'lightweight',
+    value: 'gpt-4.1',
+    name: 'GPT-4.1',
+    hint: 'non-reasoning comparison',
   },
 ];
 
@@ -83,7 +83,7 @@ export const COPILOT_MODELS: ModelChoice[] = [
   {
     value: 'gpt-5.4',
     name: 'GPT-5.4',
-    hint: 'latest general purpose',
+    hint: 'check Copilot availability',
   },
   {
     value: 'gpt-5.2-codex',

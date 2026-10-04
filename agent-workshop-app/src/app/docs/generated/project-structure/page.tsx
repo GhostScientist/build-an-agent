@@ -70,7 +70,7 @@ export default function ProjectStructurePage() {
     "start": "node dist/cli.js"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^0.1.53",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.289",
     "commander": "^11.1.0",
     "chalk": "^5.3.0",
     "ora": "^8.0.1",

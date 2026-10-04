@@ -459,6 +459,13 @@ export function MCPConfiguration({ config, updateConfig }: MCPConfigurationProps
 
   return (
     <div className="space-y-8">
+      {config.sdkProvider === 'openai' && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          OpenAI setup currently generates MCP configuration only. The adapter does not connect
+          these servers to the agent; implement the SDK connection and cleanup lifecycle in the
+          generated project before using MCP tools.
+        </p>
+      )}
       {/* Info Banner */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}

@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { AgentConfig, MCPServer, MCPServerTemplate } from '@/types/agent'
 import { MCP_SERVER_TEMPLATES } from '@/data/mcp-templates'
+import { modelsByProvider, modelDocs } from '@/data/models'
 
 interface HuggingFaceQuickFormProps {
   config: Partial<AgentConfig>
@@ -20,38 +21,7 @@ interface HuggingFaceQuickFormProps {
   onNext: () => void
 }
 
-const HUGGINGFACE_MODELS = [
-  {
-    id: 'Qwen/Qwen3-235B-A22B-Instruct-2507',
-    name: 'Qwen 3 235B Instruct',
-    description: 'Most capable open-source model with excellent tool support',
-    contextWindow: '128K'
-  },
-  {
-    id: 'Qwen/Qwen3-32B',
-    name: 'Qwen 3 32B',
-    description: 'Fast and capable with good tool support',
-    contextWindow: '128K'
-  },
-  {
-    id: 'meta-llama/Llama-3.3-70B-Instruct',
-    name: 'Llama 3.3 70B',
-    description: 'Popular open-source model from Meta',
-    contextWindow: '128K'
-  },
-  {
-    id: 'deepseek-ai/DeepSeek-R1',
-    name: 'DeepSeek R1',
-    description: 'Specialized in reasoning tasks',
-    contextWindow: '64K'
-  },
-  {
-    id: 'deepseek-ai/DeepSeek-V3-0324',
-    name: 'DeepSeek V3',
-    description: 'Powerful general-purpose model',
-    contextWindow: '64K'
-  }
-]
+const HUGGINGFACE_MODELS = modelsByProvider.huggingface
 
 // Popular MCP servers for quick-add (verified working packages)
 const POPULAR_MCP_SERVERS = [
@@ -199,7 +169,13 @@ export function HuggingFaceQuickForm({ config, updateConfig, onNext }: HuggingFa
         className="bg-white border border-gray-200 rounded-xl p-6"
       >
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Model Selection</h4>
-
+        <p className="text-sm text-gray-600 mb-4">
+          Examples, not a live catalogue. Check{' '}
+          <a href={modelDocs.huggingface} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+            inference provider availability, tool support, and pricing
+          </a>.
+          For another model or endpoint, edit the generated agent.json.
+        </p>
         <div className="grid gap-3">
           {HUGGINGFACE_MODELS.map(model => (
             <button
@@ -215,9 +191,6 @@ export function HuggingFaceQuickForm({ config, updateConfig, onNext }: HuggingFa
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
                     <h5 className="font-medium text-gray-900">{model.name}</h5>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                      {model.contextWindow}
-                    </span>
                   </div>
                   <p className="text-sm text-gray-600">{model.description}</p>
                 </div>

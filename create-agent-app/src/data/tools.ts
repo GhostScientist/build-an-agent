@@ -100,6 +100,40 @@ export const AVAILABLE_TOOLS: AgentTool[] = [
     enabled: false,
     riskLevel: 'medium',
   },
+
+  // Knowledge tools (mirrored from the web builder)
+  {
+    id: 'doc-ingest',
+    name: 'Document Ingestion',
+    description: 'Extract text from PDFs, DOCX, and text files with source capture',
+    category: 'integration',
+    enabled: false,
+    riskLevel: 'medium',
+  },
+  {
+    id: 'table-extract',
+    name: 'Table to CSV',
+    description: 'Extract tables from documents into structured CSV/JSON',
+    category: 'integration',
+    enabled: false,
+    riskLevel: 'medium',
+  },
+  {
+    id: 'source-notes',
+    name: 'Source Notebook',
+    description: 'Track sources, citations, and summaries in a local notebook',
+    category: 'custom',
+    enabled: false,
+    riskLevel: 'medium',
+  },
+  {
+    id: 'local-rag',
+    name: 'Local Retrieval',
+    description: 'Search local notes/corpus for grounded snippets (no remote calls)',
+    category: 'custom',
+    enabled: false,
+    riskLevel: 'low',
+  },
 ];
 
 export function getToolById(id: string): AgentTool | undefined {

@@ -2,55 +2,39 @@
 
 import { DocsLayout } from '@/components/docs/DocsLayout';
 import { Callout } from '@/components/docs/Callout';
+import { modelsByProvider, modelDocs } from '@/data/models';
 
 export default function SDKConfigurationPage() {
   return (
     <DocsLayout
       title="SDK Configuration"
-      description="Step 3: Select your AI provider and model."
+      description="Compare generated capabilities, authentication, and model choices."
     >
       <p>
-        Agent Workshop supports several AI providers. Each has different strengths,
-        pricing, and model options.
+        Agent Workshop supports four runtimes. These model examples are shared with the web
+        selector and mirrored in the CLI, not a live provider catalogue. Check current access,
+        pricing, context limits, and tool support before running. To use another model, edit
+        the generated agent source (or agent.json for Tiny Agents).
       </p>
+      {Object.entries(modelsByProvider).map(([provider, models]) => (
+        <section key={provider}>
+          <h2>{provider === 'claude' ? 'Claude' : provider === 'openai' ? 'OpenAI' : provider === 'copilot' ? 'GitHub Copilot' : 'HuggingFace'} model examples</h2>
+          <ul>
+            {models.map(model => (
+              <li key={model.id}><strong>{model.name}</strong>: <code>{model.id}</code></li>
+            ))}
+          </ul>
+          <a href={modelDocs[provider as keyof typeof modelDocs]} target="_blank" rel="noopener noreferrer">
+            Check current provider documentation
+          </a>
+        </section>
+      ))}
 
       <h2>Claude Agent SDK (Recommended)</h2>
       <p>
         The Claude Agent SDK is Anthropic&apos;s official framework for building AI agents.
         It&apos;s the recommended choice for most use cases.
       </p>
-
-      <h3>Available Models</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Context</th>
-            <th>Pricing (Input/Output)</th>
-            <th>Best For</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Claude Sonnet 4.5</strong></td>
-            <td>200K tokens</td>
-            <td>$3 / $15 per million</td>
-            <td>General use, best balance of cost and capability</td>
-          </tr>
-          <tr>
-            <td><strong>Claude Haiku 4.5</strong></td>
-            <td>200K tokens</td>
-            <td>$1 / $5 per million</td>
-            <td>Fast, cost-effective tasks</td>
-          </tr>
-          <tr>
-            <td><strong>Claude Opus 4.1</strong></td>
-            <td>200K tokens</td>
-            <td>$15 / $75 per million</td>
-            <td>Complex reasoning, highest capability</td>
-          </tr>
-        </tbody>
-      </table>
 
       <h3>Advantages</h3>
       <ul>
@@ -72,39 +56,11 @@ export default function SDKConfigurationPage() {
         The OpenAI Agents SDK provides agent capabilities with function calling and tool use.
       </p>
 
-      <h3>Available Models</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Context</th>
-            <th>Best For</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>GPT-5.1</strong></td>
-            <td>128K tokens</td>
-            <td>Latest capabilities, general use</td>
-          </tr>
-          <tr>
-            <td><strong>GPT-5 mini</strong></td>
-            <td>128K tokens</td>
-            <td>Cost-effective, faster responses</td>
-          </tr>
-          <tr>
-            <td><strong>GPT-4.1</strong></td>
-            <td>128K tokens</td>
-            <td>Stable, well-tested</td>
-          </tr>
-        </tbody>
-      </table>
-
       <h3>Advantages</h3>
       <ul>
         <li>Official OpenAI agent framework</li>
         <li>Advanced function calling</li>
-        <li>Streaming support</li>
+        <li>The generated adapter currently displays the completed response; it does not stream tokens</li>
         <li>Wide ecosystem compatibility</li>
       </ul>
 
@@ -114,46 +70,22 @@ export default function SDKConfigurationPage() {
         <li>Generate an API key</li>
         <li>Set <code>OPENAI_API_KEY</code> in your <code>.env</code> file</li>
       </ol>
+      <Callout type="warning" title="OpenAI MCP integration needs implementation">
+        <p>
+          The scaffold writes MCP configuration and management commands, but the OpenAI
+          adapter does not connect those servers to the agent. Add the SDK&apos;s MCP
+          connection and cleanup lifecycle before relying on external MCP tools.
+        </p>
+      </Callout>
 
       <h2>GitHub Copilot SDK</h2>
       <p>
         The <code>@github/copilot-sdk</code> package drives the same agent runtime as
-        Copilot CLI. It is the only provider that needs no API key &mdash; it authenticates
-        with your existing GitHub Copilot subscription.
+        Copilot CLI. The scaffold supports an existing CLI login or a GitHub token with
+        Copilot access. Organization policies and usage limits apply; subscription access
+        does not mean unlimited free inference.
       </p>
 
-      <h3>Available Models</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Context</th>
-            <th>Best For</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Auto</strong></td>
-            <td>Model dependent</td>
-            <td>Recommended &mdash; the runtime picks the best available model</td>
-          </tr>
-          <tr>
-            <td><strong>Claude Sonnet 4.5</strong></td>
-            <td>200K tokens</td>
-            <td>Balanced coding and agentic work</td>
-          </tr>
-          <tr>
-            <td><strong>GPT-5 / GPT-5.4</strong></td>
-            <td>128K tokens</td>
-            <td>Frontier reasoning, complex multi-step tasks</td>
-          </tr>
-          <tr>
-            <td><strong>GPT-5.2 Codex</strong></td>
-            <td>128K tokens</td>
-            <td>Long-running coding and refactoring</td>
-          </tr>
-        </tbody>
-      </table>
       <p>
         The exact model list depends on your subscription. Call <code>client.listModels()</code>
         at runtime for the authoritative list.
@@ -170,7 +102,7 @@ export default function SDKConfigurationPage() {
       <h3>Setup Requirements</h3>
       <ol>
         <li>An active GitHub Copilot subscription</li>
-        <li>Node.js 20.19+ (or 22.12+)</li>
+        <li>A supported Node.js version matching the generated package.json</li>
         <li>
           Sign in once with <code>npx @github/copilot</code>, or set a GitHub token with
           Copilot access (<code>GITHUB_TOKEN</code>, <code>GH_TOKEN</code>, or{' '}
@@ -187,9 +119,23 @@ export default function SDKConfigurationPage() {
         </p>
       </Callout>
 
+      <h2>HuggingFace tiny-agents</h2>
+      <p>
+        This path generates <code>agent.json</code> and <code>PROMPT.md</code> plus setup files,
+        not the TypeScript project described above. The tiny-agents runtime loads tools from
+        configured MCP servers. Set <code>HF_TOKEN</code> for hosted inference, or configure
+        an appropriate local/OpenAI-compatible endpoint. Check model tool support and any
+        additional MCP credentials.
+      </p>
+      <p>
+        No local build does not mean no dependencies: npx downloads the runtime, MCP
+        servers may start local processes, and hosted inference may be billed. This path
+        does not include the generated TypeScript permission manager or slash workflows.
+      </p>
+
       <Callout type="info" title="Which should I choose?">
         <p>
-          Claude, OpenAI and Copilot all produce functionally similar TypeScript agents.
+          Claude, OpenAI and Copilot produce similar project structures, not identical runtime behavior.
           Choose based on:
         </p>
         <ul className="mt-2 list-disc list-inside">
@@ -200,31 +146,18 @@ export default function SDKConfigurationPage() {
         </ul>
       </Callout>
 
-      <h2>Advanced Settings</h2>
-
-      <h3>Max Tokens</h3>
+      <h2>Model-specific Settings</h2>
       <p>
-        Controls the maximum length of agent responses. Range: 1,000 - 8,000 tokens.
-        Default: 4,096 tokens.
+        The scaffold does not apply temperature or output-token controls. Configure these
+        in the generated SDK call only after checking model support. Some reasoning models
+        do not accept temperature, and reasoning budgets differ from output-token limits.
+        No sampling setting guarantees deterministic or correct answers.
       </p>
-      <ul>
-        <li><strong>Lower values (1,000-2,000)</strong> - Concise responses, faster, cheaper</li>
-        <li><strong>Higher values (6,000-8,000)</strong> - Detailed responses, better for complex tasks</li>
-      </ul>
-
-      <h3>Temperature</h3>
-      <p>
-        Controls response randomness. Range: 0.0 - 1.0. Default: 0.7.
-      </p>
-      <ul>
-        <li><strong>Lower values (0.0-0.3)</strong> - Deterministic, consistent, best for code/analysis</li>
-        <li><strong>Higher values (0.7-1.0)</strong> - Creative, varied, best for content generation</li>
-      </ul>
-
-      <Callout type="tip" title="Recommended settings">
+      <Callout type="tip" title="Evaluate changes, do not assume improvements">
         <p>
-          For most agent use cases, the defaults work well. Consider lowering temperature
-          to 0.3 for code-focused agents where consistency matters.
+          Run a fixed set of tasks before and after changing a model or setting. Compare
+          correctness, denied actions, latency, and provider-reported usage. Inspect the
+          generated adapter rather than assuming every upstream SDK feature is enabled.
         </p>
       </Callout>
     </DocsLayout>

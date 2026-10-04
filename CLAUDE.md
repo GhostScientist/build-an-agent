@@ -6,7 +6,7 @@ Guidance for AI assistants (Claude Code and others) working in this repository.
 
 **Agent Workshop** scaffolds custom AI agent projects targeting one of four providers: the **Claude Agent SDK**, the **OpenAI Agents SDK**, the **GitHub Copilot SDK** (`@github/copilot-sdk`), or **HuggingFace tiny-agents**. It ships two user-facing products in an npm-workspaces monorepo:
 
-- **`agent-workshop-app/`** — a Next.js 14 web UI (visual wizard with live Monaco code preview, downloads a zip). Deployed to Netlify as a static export.
+- **`agent-workshop-app/`** — a Next.js 15 web UI (visual wizard with live Monaco code preview, downloads a zip). Deployed to Netlify as a static export.
 - **`create-agent-app/`** — an interactive CLI wizard, published to npm as **`build-agent-app`** (`npx build-agent-app@latest my-agent`).
 
 Generated agents are configured by **domain** (development, business, creative, data, knowledge), **provider**, tools, permission level, and MCP servers.
@@ -15,8 +15,8 @@ Generated agents are configured by **domain** (development, business, creative, 
 
 ```
 package.json              # Root: private, npm workspaces (agent-workshop-app, create-agent-app), no scripts
-netlify.toml              # Netlify deploy (base=agent-workshop-app, publish=out, Node 18)
-.devcontainer/            # Node 20 devcontainer, postCreate=npm install, port 3000
+netlify.toml              # Netlify deploy (base=agent-workshop-app, publish=out, Node 22)
+.devcontainer/            # Node 22 devcontainer, postCreate=npm install, port 3000
 src/tools/                # Legacy/reference code (file-operations.ts) — not part of either workspace build
 
 create-agent-app/         # CLI package ("build-agent-app")
@@ -29,12 +29,12 @@ create-agent-app/         # CLI package ("build-agent-app")
     ├── prompts/          # Wizard steps (project, domain, template, sdk, tools, huggingface)
     └── utils/            # styles.ts, spinner.ts, validation.ts
 
-agent-workshop-app/       # Next.js 14 web UI (App Router, static export)
+agent-workshop-app/       # Next.js 15 web UI (App Router, static export)
 ├── src/
 │   ├── app/              # layout.tsx, page.tsx, docs/ (large docs tree rendered as pages)
 │   ├── components/       # wizard/AgentBuilder.tsx + wizard/steps/, docs/, preview/
 │   ├── lib/              # generator.ts (~6.6k lines, codegen core), store.ts (zustand)
-│   ├── data/             # mcp-templates.ts
+│   ├── data/             # mcp-templates.ts, models.ts (curated model examples)
 │   └── types/agent.ts    # Shared type model
 ├── e2e/                  # Playwright specs (wizard.spec.ts, example.spec.ts)
 └── scripts/              # generator-smoke.ts, generator-matrix.ts, test-build.ts,
@@ -43,7 +43,7 @@ agent-workshop-app/       # Next.js 14 web UI (App Router, static export)
 
 ## Commands
 
-Node **>= 18** required. Install once at the repo root (hydrates both workspaces):
+Node **>= 22.12** required. Install once at the repo root (hydrates both workspaces):
 
 ```bash
 npm install
@@ -54,7 +54,7 @@ npm install
 ```bash
 npm run dev                  # Dev server at http://localhost:3000
 npm run build                # Static export to out/ (output: 'export')
-npm run lint                 # next lint (eslint-config-next)
+npm run lint                 # ESLint flat config (eslint-config-next)
 npm run type-check           # tsc --noEmit
 npm run test:e2e             # Playwright (chromium; auto-starts the dev server)
 npm run test:generator       # Generator smoke test (tsx)
@@ -105,7 +105,7 @@ The `copilot` provider goes through the same full wizard flow and generator as C
 - **Auth is soft** — a missing token warns instead of exiting, because the SDK falls back to a stored Copilot CLI / `gh` CLI login.
 - **`shutdown()` is required.** The SDK spawns a child CLI process; the generated `src/cli.ts` wraps its run in `try/finally { await agent.shutdown() }` (Copilot only) or the process hangs on exit.
 - **Instructions are auto-loaded.** The runtime reads `.github/copilot-instructions.md`, `AGENTS.md`, and `CLAUDE.md` from cwd, so generated memory is not re-injected into `systemMessage` (skills/commands/subagents still are).
-- **Node `^20.19.0 || >=22.12.0`** in the generated `package.json`, higher than other providers.
+- **Node `>=22.12.0`** in generated TypeScript projects and both workspace packages.
 
 ## Conventions
 
@@ -139,6 +139,6 @@ Generated projects include their own `.env.example`.
 ## CI / Deployment
 
 - **No GitHub Actions** — there is no `.github/` directory. Validate changes locally with the commands above.
-- **Netlify** deploys the web app (`netlify.toml`: build `npm run build`, publish `out/`, Node 18).
+- **Netlify** deploys the web app (`netlify.toml`: build `npm run build`, publish `out/`, Node 22).
 - Default branch is `master`; development happens via pull requests into it.
 - The CLI is published to npm as `build-agent-app` (`prepublishOnly` runs the build); bump its `version` in `create-agent-app/package.json` when releasing.

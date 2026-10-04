@@ -1,0 +1,70 @@
+{
+  "name": "literature-review",
+  "description": "Perform systematic literature review with citations and bibliography generation",
+  "arguments": [
+    {
+      "name": "sources",
+      "type": "path",
+      "required": true,
+      "description": "Path to PDFs/documents directory (e.g., ./data/sources)"
+    },
+    {
+      "name": "output",
+      "type": "path",
+      "default": "./output/literature-review.md",
+      "description": "Output file path for the review"
+    },
+    {
+      "name": "limit",
+      "type": "number",
+      "default": 10,
+      "description": "Maximum number of key claims to extract"
+    }
+  ],
+  "workflow": {
+    "steps": [
+      {
+        "name": "find_documents",
+        "forEach": "{{sources}}/**/*.{pdf,docx,txt}",
+        "tool": "doc_ingest",
+        "input": "{{item}}",
+        "output": "{{$documents}}",
+        "onError": "continue"
+      },
+      {
+        "name": "extract_claims",
+        "prompt": "Based on the {{$documents.length}} documents I've ingested, extract the top {{limit}} most important claims or findings. For each claim, provide: 1) The claim itself, 2) Which document it came from (include file path), 3) A brief quote or evidence. Format as a numbered list with citations.",
+        "output": "{{$claims}}"
+      },
+      {
+        "name": "identify_gaps",
+        "prompt": "Based on the claims extracted, identify 3-5 research gaps or open questions that aren't fully addressed in the literature.",
+        "output": "{{$gaps}}"
+      },
+      {
+        "name": "generate_bibliography",
+        "prompt": "Create an annotated bibliography entry for each document, including: file path, key findings, and relevance to the research topic. Format in markdown.",
+        "output": "{{$bibliography}}"
+      },
+      {
+        "name": "compile_review",
+        "prompt": "Compile a complete literature review document with these sections: 1) Executive Summary, 2) Key Claims ({{$claims}}), 3) Research Gaps ({{$gaps}}), 4) Annotated Bibliography ({{$bibliography}}). Use markdown formatting.",
+        "output": "{{$review}}"
+      },
+      {
+        "name": "save_review",
+        "tool": "write_file",
+        "input": {
+          "filePath": "{{output}}",
+          "content": "{{$review}}"
+        },
+        "output": "{{$result}}"
+      }
+    ]
+  },
+  "permissions": [
+    "read_file",
+    "write_file"
+  ],
+  "requiresApproval": false
+}

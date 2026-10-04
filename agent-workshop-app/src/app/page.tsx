@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   RocketLaunchIcon,
@@ -231,7 +232,7 @@ export default function HomePage() {
             >
               One Wizard.{' '}
               <span className="underline decoration-4 underline-offset-8 decoration-primary/30">
-                Every Agent SDK.
+                Four Agent Runtimes.
               </span>
             </motion.h2>
 
@@ -241,10 +242,10 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-xl text-muted-foreground mb-6 max-w-3xl mx-auto"
             >
-              An educational builder for AI agent CLIs. Answer the wizard once, then download a
-              complete TypeScript project on Claude, OpenAI, GitHub Copilot, or HuggingFace
-              &mdash; same questions, same project shape, four runtimes. <br />
-              <span className="font-semibold text-foreground">Free, open-source, and no lock-in.</span>
+              Learn by inspecting and running your own agent. Generate a TypeScript CLI for
+              Claude, OpenAI, or GitHub Copilot, or a lightweight HuggingFace tiny-agents
+              configuration. <br />
+              <span className="font-semibold text-foreground">Free, open-source builder. Provider usage may cost money.</span>
             </motion.p>
 
             <motion.div
@@ -280,6 +281,9 @@ export default function HomePage() {
               className="flex flex-col gap-4 items-center"
             >
               <div className="text-sm text-muted-foreground mb-2">Two ways to build:</div>
+              <Link href="/docs/concepts#learning-path" className="text-primary underline underline-offset-4">
+                Follow the learning path: build, observe, evaluate
+              </Link>
               <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                 <button
                   onClick={() => setShowBuilder(true)}
@@ -291,7 +295,7 @@ export default function HomePage() {
                 </button>
 
                 <a
-                  href="https://github.com/GhostScientist/build-an-agent/tree/main/create-agent-app#readme"
+                  href="https://github.com/GhostScientist/build-an-agent/tree/master/create-agent-app#readme"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-ghost px-8 py-3 text-base"
@@ -313,7 +317,7 @@ export default function HomePage() {
                   <div className="w-3 h-3 rounded-full bg-destructive"></div>
                   <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-muted-foreground ml-2">Research Agent CLI with Workflows</span>
+                  <span className="text-muted-foreground ml-2">Illustrative research workflow — not a recorded run</span>
                 </div>
                 <div className="space-y-2">
                   <div>
@@ -359,7 +363,7 @@ export default function HomePage() {
               transition={{ duration: 0.6 }}
               className="text-3xl font-bold tracking-tight mb-4"
             >
-              Pick Your SDK. Keep Your Agent.
+              Compare Runtimes, Not Just Models.
             </motion.h3>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -367,9 +371,9 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-lg text-muted-foreground max-w-3xl mx-auto"
             >
-              Most agent scaffolds lock you into a single vendor. Here, the provider is just
-              one step in the wizard. Your domain, tools, workflows, and permissions carry
-              over &mdash; only the SDK underneath changes.
+              Claude, OpenAI, and Copilot share the full configuration flow, but tool execution,
+              authentication, and permissions differ. HuggingFace uses a shorter configuration-only
+              flow. Switching providers means generating and testing a new project, not automatic migration.
             </motion.p>
           </div>
 
@@ -414,28 +418,28 @@ export default function HomePage() {
             className="bg-muted/40 rounded-lg border p-8 max-w-5xl mx-auto"
           >
             <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground text-center mb-6">
-              What stays the same no matter which SDK you pick
+              What you actually get
             </h4>
             <div className="grid sm:grid-cols-3 gap-6 text-center">
               <div>
-                <div className="font-semibold mb-1">Same wizard</div>
+                <div className="font-semibold mb-1">TypeScript scaffolds</div>
                 <p className="text-sm text-muted-foreground">
-                  Domain, template, tools, and permission level are configured identically
-                  across providers.
+                  Claude, OpenAI, and Copilot get editable source, workflow commands, and
+                  provider-specific tool policies. Review these before using real data.
                 </p>
               </div>
               <div>
-                <div className="font-semibold mb-1">Same project shape</div>
+                <div className="font-semibold mb-1">Lightweight configurations</div>
                 <p className="text-sm text-muted-foreground">
-                  TypeScript source, slash command workflows, and a permission system you can
-                  read and edit.
+                  HuggingFace gets agent.json and PROMPT.md, run by tiny-agents.
+                  Its runtime and MCP servers supply tools; there is no generated TypeScript CLI.
                 </p>
               </div>
               <div>
-                <div className="font-semibold mb-1">Same escape hatch</div>
+                <div className="font-semibold mb-1">A starting point, not hosting</div>
                 <p className="text-sm text-muted-foreground">
-                  You own the code. Rerun the wizard on another SDK to see exactly what
-                  changes underneath.
+                  Both builders generate files for you to run locally. They do not host agents,
+                  provision credentials, or certify production readiness.
                 </p>
               </div>
             </div>
@@ -577,11 +581,12 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h3 className="text-3xl font-bold tracking-tight mb-4">
-              Enterprise Workflows Meet AI Intelligence
+              Inspectable Building Blocks
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Generated agents include sophisticated slash command workflows for multi-step operations.
-              Built on the Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, and HuggingFace Tiny Agents with MCP tools, streaming, and configurable security.
+              The TypeScript scaffolds include domain-specific workflow examples and configurable tools.
+              Tiny Agents provides a smaller, configuration-first alternative. Features below are
+              labelled by provider.
             </p>
           </div>
           
@@ -652,7 +657,8 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-lg text-muted-foreground max-w-2xl mx-auto"
             >
-              Different people, different workflows. Select your path to see how you might explore agentic tools.
+              Different people, different workflows. These illustrative scenarios are not benchmarks
+              or guaranteed outputs. Select a path to explore.
             </motion.p>
           </div>
 
@@ -951,9 +957,9 @@ export default function HomePage() {
               Ready to Build Your Workflow-Powered Agent?
             </h3>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Choose your domain, select a template with pre-built workflows, and pick any of the
-              four supported SDKs. Download a TypeScript CLI with slash commands, multi-step
-              orchestration, and configurable security.
+              Choose a TypeScript starter with editable tools and workflow examples, or a
+              lightweight Tiny Agents configuration. Inspect the output, run it in an isolated
+              workspace, and measure what it can actually do.
             </p>
             <button
               onClick={() => setShowBuilder(true)}
@@ -1037,7 +1043,7 @@ export default function HomePage() {
 const sdkProviders = [
   {
     name: 'Claude Agent SDK',
-    pkg: '@anthropic-ai/claude-code',
+    pkg: '@anthropic-ai/claude-agent-sdk',
     pitch: 'Anthropic\'s agent framework with native streaming and built-in file and code tools.',
     models: 'Sonnet 4.5, Haiku 4.5, Opus 4.1',
     auth: 'ANTHROPIC_API_KEY',
@@ -1058,7 +1064,7 @@ const sdkProviders = [
     pkg: '@github/copilot-sdk',
     pitch: 'The same agent runtime as Copilot CLI, with built-in file, search, and shell tools.',
     models: 'Auto, Claude Sonnet 4.5, GPT-5, GPT-5.4',
-    auth: 'Copilot subscription (no API key)',
+    auth: 'Copilot access; CLI login or supported token. Usage limits apply.',
     iconWrapper: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
     logo: <GitHubMark className="w-5 h-5" />,
     isNew: true,
@@ -1066,7 +1072,7 @@ const sdkProviders = [
   {
     name: 'HuggingFace Tiny Agents',
     pkg: '@huggingface/tiny-agents',
-    pitch: 'JSON and markdown only. No build step, open-source models, publishable to the Hub.',
+    pitch: 'JSON and markdown configuration. No local build; tiny-agents and MCP servers are runtime dependencies.',
     models: 'Qwen 3, Llama 3.3, DeepSeek',
     auth: 'HF_TOKEN',
     iconWrapper: 'bg-amber-500/10',
@@ -1083,7 +1089,7 @@ const features = [
   },
   {
     title: 'Configurable Security',
-    description: 'Claude Code-style permission system with interactive prompts for file operations, command execution, and network requests. Users approve high-risk actions before they execute.',
+    description: 'Provider-specific tool policies and approval handling. These are not an OS sandbox or a guarantee against prompt injection. Test denied operations and isolate execution.',
     icon: CogIcon,
     providers: ['claude', 'openai', 'copilot'],
   },
@@ -1095,7 +1101,7 @@ const features = [
   },
   {
     title: 'Zero-Build Tiny Agents',
-    description: 'Create lightweight agents with just JSON + markdown. No build step, no dependencies. Run instantly with npx, share to the HuggingFace community, and use powerful open-source models.',
+    description: 'Create JSON + markdown configuration without a local build step. Running it downloads tiny-agents and may start MCP servers. Inference access, credentials, and provider charges still apply.',
     icon: SparklesIcon,
     providers: ['huggingface'],
     isNew: true,
@@ -1126,8 +1132,8 @@ const agentTemplates = [
   },
   {
     name: 'Social Media Manager',
-    description: 'Create, plan, and optimize social media content across all major platforms.',
-    tools: ['Content Creation', 'Trend Analysis', 'Scheduling', 'Multi-platform'],
+    description: 'Draft and review social media content. Publishing and scheduling require your own integrations.',
+    tools: ['Content Drafting', 'Editorial Planning', 'Human Review', 'Custom Integrations'],
     icon: RocketLaunchIcon,
     gradient: 'bg-gradient-to-br from-pink-500 to-rose-600',
   },

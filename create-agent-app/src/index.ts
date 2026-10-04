@@ -2,6 +2,7 @@
 import { program } from 'commander';
 import path from 'path';
 import fs from 'fs-extra';
+import { createRequire } from 'node:module';
 
 import { printHeader, printSuccess, printError, styles } from './utils/styles.js';
 import { toPackageName, checkDirectoryExists } from './utils/validation.js';
@@ -14,7 +15,7 @@ import { runHuggingFaceWizard } from './prompts/huggingface.js';
 import { generateProject } from './generator/index.js';
 import type { AgentConfig } from './types.js';
 
-const VERSION = '1.0.0';
+const { version: VERSION } = createRequire(import.meta.url)('../package.json');
 
 async function main() {
 

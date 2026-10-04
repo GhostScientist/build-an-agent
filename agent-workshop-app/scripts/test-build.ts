@@ -1,8 +1,9 @@
 #!/usr/bin/env tsx
 import { generateAgentProject } from '../src/lib/generator'
+import { generateAgentProject as generateCliAgentProject } from '../../create-agent-app/src/generator/webapp-generator'
 import { AGENT_TEMPLATES, AVAILABLE_TOOLS, type AgentConfig, type SDKProvider } from '../src/types/agent'
 import { writeFileSync, mkdirSync, rmSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { execSync } from 'child_process'
 
 const SUPPORTED_PROVIDERS: SDKProvider[] = ['claude', 'openai', 'copilot']
@@ -29,7 +30,9 @@ function parseProvider(): SDKProvider {
 }
 
 const provider = parseProvider()
-const outputDir = `/tmp/test-researcher-agent-${provider}`
+const useCliGenerator = process.argv.includes('--cli-generator')
+const allTools = process.argv.includes('--all-tools')
+const outputDir = resolve(`.generator-build-${provider}-${useCliGenerator ? 'cli' : 'web'}`)
 
 // Clean up previous test
 try {
@@ -42,7 +45,7 @@ console.log(`Generating ${provider} agent project with knowledge tools...`)
 const template = AGENT_TEMPLATES.find(t => t.id === 'research-ops-agent')!
 const tools = AVAILABLE_TOOLS.map(tool => ({
   ...tool,
-  enabled: template.defaultTools.includes(tool.id),
+  enabled: allTools || template.defaultTools.includes(tool.id),
 }))
 
 const config: AgentConfig = {
@@ -66,7 +69,7 @@ const config: AgentConfig = {
 }
 
 async function runTest() {
-  const project = await generateAgentProject(config)
+  const project = await (useCliGenerator ? generateCliAgentProject : generateAgentProject)(config)
 
   console.log(`Generated ${project.files.length} files`)
 
@@ -87,7 +90,7 @@ async function runTest() {
     console.log('✅ npm install succeeded')
   } catch (error) {
     console.error('❌ npm install failed')
-    process.exit(1)
+    throw error
   }
 
   // Test build
@@ -97,13 +100,15 @@ async function runTest() {
     console.log('✅ Build succeeded!')
   } catch (error) {
     console.error('❌ Build failed')
-    process.exit(1)
+    throw error
   }
 
   console.log('\n🎉 All tests passed!')
 }
 
-runTest().catch(err => {
-  console.error('Test failed:', err)
-  process.exit(1)
-})
+runTest()
+  .catch(err => {
+    console.error('Test failed:', err)
+    process.exitCode = 1
+  })
+  .finally(() => rmSync(outputDir, { recursive: true, force: true }))

@@ -5,6 +5,11 @@ const KNOWLEDGE_TOOL_IDS = new Set(['doc-ingest', 'table-extract', 'source-notes
 
 // Providers that produce a full TypeScript project (HuggingFace has its own lightweight path)
 const FULL_PROJECT_PROVIDERS: SDKProvider[] = ['claude', 'openai', 'copilot']
+const SDK_DEPENDENCIES = {
+  claude: ['@anthropic-ai/claude-agent-sdk', '^0.3.289'],
+  openai: ['@openai/agents', '^0.18.0'],
+  copilot: ['@github/copilot-sdk', '^1.0.16'],
+} as const
 
 const MODEL_BY_PROVIDER: Record<SDKProvider, string> = {
   claude: 'claude-sonnet-4.5-20250929',
@@ -68,6 +73,14 @@ async function runMatrix() {
       const config = buildConfig(template.id, provider)
       const project = await generateAgentProject(config)
       const paths = new Set(project.files.map(f => f.path))
+      const packageJson = JSON.parse(project.files.find(f => f.path === 'package.json')!.content)
+      const [sdk, version] = SDK_DEPENDENCIES[provider as keyof typeof SDK_DEPENDENCIES]
+      if (packageJson.dependencies[sdk] !== version || packageJson.engines.node !== '>=22.12.0') {
+        throw new Error(`[${provider}] Template ${template.id} has stale SDK or Node requirements`)
+      }
+      if (provider === 'openai' && packageJson.dependencies.zod !== '^4.6.5') {
+        throw new Error(`[openai] Template ${template.id} must satisfy the SDK's Zod 4 peer dependency`)
+      }
 
       // Core files
       const mustHave = ['package.json', 'src/agent.ts', 'src/cli.ts', 'src/config.ts', 'src/permissions.ts', 'src/planner.ts', 'README.md', '.env.example', '.plans/.gitkeep']

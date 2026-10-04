@@ -1,6 +1,6 @@
 {
   "name": "Agent Workshop",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "postCreateCommand": "npm install",
   "forwardPorts": [3000],
   "features": {

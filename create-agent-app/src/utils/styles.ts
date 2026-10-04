@@ -60,10 +60,10 @@ export function printSuccess(projectName: string, provider: string): void {
     console.log(`   ${styles.highlight('npm run')} build`);
     console.log(`   ${styles.highlight('npm')} start`);
     console.log();
-    console.log(styles.dim('   Authentication uses your GitHub Copilot subscription (no API key).'));
+    console.log(styles.dim('   Authentication requires Copilot access. Usage limits and organization policies apply.'));
     console.log(styles.dim('   → Already signed in with the Copilot CLI or gh CLI? Nothing else to do.'));
     console.log(styles.dim('   → Otherwise: cp .env.example .env and set GITHUB_TOKEN'));
-    console.log(styles.dim('   → Requires Node.js 20.19+ (or 22.12+)'));
+    console.log(styles.dim('   → Check package.json for the generated Node.js requirement.'));
     console.log();
     console.log(styles.dim('   Want to add MCP servers for extended capabilities?'));
     console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
@@ -93,6 +93,8 @@ export function printSuccess(projectName: string, provider: string): void {
     console.log(styles.dim('   → Visit https://agent-workshop.dev/docs/features/mcp-servers'));
   }
   console.log(styles.dim('   → Or use the web builder at https://agent-workshop.dev'));
+  console.log(styles.dim('   Learn: https://agent-workshop.dev/docs/concepts#learning-path'));
+  console.log(styles.dim('   Start with synthetic data, test denied actions, and compare results against a baseline.'));
   console.log();
 }
 

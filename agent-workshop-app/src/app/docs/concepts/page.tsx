@@ -8,8 +8,76 @@ export default function ConceptsPage() {
   return (
     <DocsLayout
       title="Core Concepts"
-      description="Understanding the fundamental building blocks of Agent Workshop."
+      description="Learn modern agent engineering through small, measurable experiments."
     >
+      <h2 id="learning-path">Learning path: build, observe, evaluate</h2>
+      <p>
+        Start with one task and one agent, not a multi-agent architecture. A model proposes
+        actions; the runtime manages the loop; tools execute actions; your application must
+        enforce permissions, limits, and review. A good agent is a measured system, not just
+        a convincing prompt.
+      </p>
+      <p>
+        Use either builder for these exercises. Work in a disposable directory with synthetic
+        data and no production credentials. Keep the generated source open beside your terminal.
+        These are guided experiments, not an automated course or a built-in evaluation dashboard.
+      </p>
+      <ol>
+        <li>
+          <strong>Establish a baseline.</strong> Pick a bounded task, such as answering questions
+          about three local documents. Write five questions, expected evidence, and a rule for
+          when the agent should abstain. Try a plain model prompt first. Deliverable: a small
+          test set and baseline results.
+        </li>
+        <li>
+          <strong>Inspect the agent loop.</strong> Generate a restrictive, read-only agent.
+          Find instructions, tool schemas, execution handlers, and the SDK call in the source
+          (or the prompt and MCP configuration for Tiny Agents). Follow one question from input
+          to tool result to answer. Deliverable: a diagram of what runs locally and what leaves
+          the machine.
+        </li>
+        <li>
+          <strong>Test boundaries before adding power.</strong> Attempt an out-of-scope file
+          read and a disabled write in your isolated workspace. Put an instruction to ignore
+          the task in a test document and verify it is treated as untrusted data. Permission
+          settings are not a sandbox. Deliverable: observed allow/deny results and any gaps
+          you must fix before using real data.
+        </li>
+        <li>
+          <strong>Add one tool or MCP server.</strong> Understand its schema, credentials,
+          process/network access, and failure modes. Test malformed arguments, missing files,
+          server outages, and tool-output injection. MCP connects tools; it does not establish
+          trust. Deliverable: a least-privilege tool contract and failure checklist.
+        </li>
+        <li>
+          <strong>Measure quality and cost.</strong> Repeat your baseline cases, record model
+          and SDK versions, tool calls, errors, elapsed time, and provider-reported usage.
+          Redact secrets and personal data from logs. Score correctness, source attribution,
+          abstention, and policy compliance separately. Deliverable: a comparison table,
+          including failures rather than only the best run.
+        </li>
+        <li>
+          <strong>Compare before scaling.</strong> Change one variable: instructions, retrieval,
+          model, or runtime. Repeat the same cases. Add a workflow or multiple agents only
+          when the simpler baseline fails for a specific reason. Before deployment, implement
+          step/time/spend limits, cancellation, safe retries, and human approval for irreversible
+          actions. Deliverable: an evidence-backed decision and a list of remaining risks.
+        </li>
+      </ol>
+      <Callout type="info" title="What is not generated for you">
+        <p>
+          Scaffolding does not provide a production sandbox, durable job orchestration,
+          a universal tracing system, automated eval scoring, or a spend-control dashboard.
+          SDK support for handoffs, tracing, structured output, and guardrails is not the same
+          as those features being wired into this project.
+        </p>
+      </Callout>
+      <p>
+        Continue with the <Link href="/docs/quick-start" className="text-blue-600 hover:underline">Quick Start</Link>,
+        compare <Link href="/docs/guide/sdk-configuration" className="text-blue-600 hover:underline">provider capabilities</Link>,
+        and review <Link href="/docs/best-practices/security" className="text-blue-600 hover:underline">security guidance</Link>.
+      </p>
+
       <h2>Domains</h2>
       <p>
         A <strong>domain</strong> represents the area of expertise for your agent. Agent Workshop
@@ -262,7 +330,7 @@ export default function ConceptsPage() {
         <li>No API key &mdash; authenticates with your Copilot subscription</li>
         <li>Built-in file, search and shell tools (no generated wrappers)</li>
         <li>Models: Auto, Claude Sonnet 4.5, GPT-5, GPT-5.4, GPT-5.2 Codex</li>
-        <li>Requires Node.js 20.19+</li>
+        <li>Requires a supported Node.js version matching the generated package.json</li>
       </ul>
 
       <Callout type="info">

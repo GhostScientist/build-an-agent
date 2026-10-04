@@ -339,10 +339,10 @@ export async function generateAgentProject(config: AgentConfig): Promise<Generat
     agentWorkshopVersion: '0.1.0',
     dependencies: getDependencies(config),
     devDependencies: {
-      '@types/node': '^20.10.0',
-      '@types/inquirer': '^9.0.7',
-      '@types/pdf-parse': '^1.1.4',
-      'typescript': '^5.3.0',
+      '@types/node': '^22.20.5',
+      '@types/inquirer': '^9.0.10',
+      '@types/pdf-parse': '^1.1.5',
+      'typescript': '^5.9.3',
       'ts-node': '^10.9.2'
     },
     scripts: {
@@ -401,8 +401,7 @@ function generatePackageJson(config: AgentConfig): string {
     license: config.license || 'MIT',
     type: 'module',
     engines: {
-      // @github/copilot-sdk requires a newer Node runtime than the other providers
-      node: config.sdkProvider === 'copilot' ? '^20.19.0 || >=22.12.0' : '>=18.0.0'
+      node: '>=22.12.0'
     },
     files: [
       'dist/**/*',
@@ -422,10 +421,10 @@ function generatePackageJson(config: AgentConfig): string {
     },
     dependencies: getDependencies(config),
     devDependencies: {
-      '@types/node': '^20.10.0',
-      '@types/inquirer': '^9.0.7',
-      '@types/pdf-parse': '^1.1.4',
-      'typescript': '^5.3.0'
+      '@types/node': '^22.20.5',
+      '@types/inquirer': '^9.0.10',
+      '@types/pdf-parse': '^1.1.5',
+      'typescript': '^5.9.3'
     }
   }
 
@@ -441,34 +440,34 @@ function generatePackageJson(config: AgentConfig): string {
 
 function getDependencies(config: AgentConfig): Record<string, string> {
   const baseDeps: Record<string, string> = {
-    'commander': '^12.0.0',
-    'chalk': '^5.3.0',
-    'ora': '^8.0.1',
-    'inquirer': '^9.2.12',
+    'commander': '^12.1.0',
+    'chalk': '^5.6.2',
+    'ora': '^8.2.0',
+    'inquirer': '^9.3.8',
     'inquirer-autocomplete-prompt': '^3.0.1',
-    'dotenv': '^16.3.1',
+    'dotenv': '^16.6.1',
     // Required by the always-generated src/workflows.ts
-    'glob': '^10.3.10'
+    'glob': '^10.5.0'
   }
   
   // Add SDK-specific dependencies
   switch (config.sdkProvider) {
     case 'claude':
-      baseDeps['@anthropic-ai/claude-agent-sdk'] = '^0.1.53'
+      baseDeps['@anthropic-ai/claude-agent-sdk'] = '^0.3.289'
       break
     case 'openai':
-      baseDeps['@openai/agents'] = '^0.1.0'
-      baseDeps['zod'] = '^3.0.0'
+      baseDeps['@openai/agents'] = '^0.18.0'
+      baseDeps['zod'] = '^4.6.5'
       break
     case 'huggingface':
       baseDeps['@huggingface/tiny-agents'] = '^0.3.4'
-      baseDeps['@huggingface/mcp-client'] = '^0.1.0'
-      baseDeps['@modelcontextprotocol/sdk'] = '^1.11.4'
-      baseDeps['zod'] = '^3.25.0'
+      baseDeps['@huggingface/mcp-client'] = '^0.2.3'
+      baseDeps['@modelcontextprotocol/sdk'] = '^1.32.0'
+      baseDeps['zod'] = '^3.25.76'
       break
     case 'copilot':
       // Bundles the Copilot CLI, so no separate runtime install is required.
-      baseDeps['@github/copilot-sdk'] = '^1.0.8'
+      baseDeps['@github/copilot-sdk'] = '^1.0.16'
       break
   }
   
@@ -477,17 +476,17 @@ function getDependencies(config: AgentConfig): Record<string, string> {
   const usesWrapperTools = config.sdkProvider !== 'copilot'
 
   if (usesWrapperTools && enabledTools.some(t => t.category === 'web')) {
-    baseDeps['axios'] = '^1.6.0'
-    baseDeps['cheerio'] = '^1.0.0-rc.12'
+    baseDeps['axios'] = '^1.20.0'
+    baseDeps['cheerio'] = '^1.2.0'
   }
 
   if (usesWrapperTools && enabledTools.some(t => t.category === 'database')) {
-    baseDeps['better-sqlite3'] = '^9.0.0'
+    baseDeps['better-sqlite3'] = '^12.11.1'
   }
   
   if (enabledTools.some(t => KNOWLEDGE_TOOL_IDS.includes(t.id))) {
-    baseDeps['pdf-parse'] = '^1.1.1'
-    baseDeps['mammoth'] = '^1.7.2'
+    baseDeps['pdf-parse'] = '^1.1.4'
+    baseDeps['mammoth'] = '^1.13.0'
   }
   
   return baseDeps
@@ -4949,7 +4948,7 @@ agent project-specific context — no code changes required.
 ` : ''}
 ## Prerequisites
 
-- Node.js ${config.sdkProvider === 'copilot' ? '>= 20.19.0 (or >= 22.12.0)' : '>= 18.0.0'}
+- Node.js >= 22.12.0
 - npm or yarn
 - ${config.sdkProvider === 'claude' ? 'Anthropic API key' : config.sdkProvider === 'openai' ? 'OpenAI API key' : config.sdkProvider === 'copilot' ? 'An active GitHub Copilot subscription (no API key needed)' : 'API key'}
 
@@ -5155,7 +5154,7 @@ npm test       # Show help (basic test)
 ### Build Errors
 - Clear dist folder: \`npm run clean\`
 - Reinstall dependencies: \`rm -rf node_modules && npm install\`
-- Check Node.js version: \`node --version\` (should be ≥18.0.0)
+- Check Node.js version: \`node --version\` (should be ≥22.12.0)
 
 ## Generated with Agent Workshop
 

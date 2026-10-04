@@ -1,0 +1,69 @@
+{
+  "name": "experiment-log",
+  "description": "Create structured experiment log with data traceability",
+  "arguments": [
+    {
+      "name": "hypothesis",
+      "type": "string",
+      "required": true,
+      "description": "The hypothesis being tested"
+    },
+    {
+      "name": "data",
+      "type": "path",
+      "required": false,
+      "description": "Path to data file (CSV, JSON, etc.)"
+    },
+    {
+      "name": "context",
+      "type": "string",
+      "required": false,
+      "description": "Additional context or background"
+    }
+  ],
+  "workflow": {
+    "steps": [
+      {
+        "name": "read_data",
+        "tool": "read_file",
+        "input": "{{data}}",
+        "output": "{{$dataContent}}",
+        "onError": "skip"
+      },
+      {
+        "name": "analyze_data",
+        "prompt": "Analyze this data and provide observations: {{$dataContent}}. If no data was provided, skip this analysis.",
+        "output": "{{$observations}}",
+        "onError": "continue"
+      },
+      {
+        "name": "generate_log",
+        "prompt": "Create a detailed experiment log entry with these sections:\\n\\n**Experiment Log - {{timestamp}}**\\n\\n**Hypothesis:** {{hypothesis}}\\n\\n**Context:** {{context}}\\n\\n**Data Source:** {{data}}\\n\\n**Observations:** {{$observations}}\\n\\n**Results:** [Provide analysis of whether the hypothesis is supported]\\n\\n**Next Actions:** [Suggest 2-3 concrete next steps]\\n\\nUse markdown formatting and be thorough.",
+        "output": "{{$log}}"
+      },
+      {
+        "name": "save_log",
+        "tool": "write_file",
+        "input": {
+          "filePath": "./logs/experiment-{{timestamp}}.md",
+          "content": "{{$log}}"
+        },
+        "output": "{{$result}}"
+      },
+      {
+        "name": "update_index",
+        "tool": "write_file",
+        "input": {
+          "filePath": "./logs/index.md",
+          "content": "## Experiment Log Index\\n\\n- [{{timestamp}}](./experiment-{{timestamp}}.md) - {{hypothesis}}\\n"
+        },
+        "onError": "continue"
+      }
+    ]
+  },
+  "permissions": [
+    "read_file",
+    "write_file"
+  ],
+  "requiresApproval": false
+}

@@ -146,7 +146,7 @@ cd my-agent`}
         If you encounter TypeScript errors during build:
       </p>
       <ul>
-        <li>Ensure you&apos;re using Node.js 18 or later</li>
+        <li>Use Node.js 22.12 or later and check the generated package.json</li>
         <li>Delete <code>node_modules</code> and run <code>npm install</code> again</li>
         <li>Check that all dependencies installed correctly</li>
       </ul>

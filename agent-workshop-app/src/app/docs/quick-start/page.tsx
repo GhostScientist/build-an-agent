@@ -13,13 +13,16 @@ export default function QuickStartPage() {
     >
       <h2>Prerequisites</h2>
       <ul>
-        <li>Node.js 18 or later</li>
+        <li>Node.js 22.12 or later; check the generated package.json</li>
         <li>An API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a> or <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer">OpenAI</a>, or an active <a href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot</a> subscription</li>
       </ul>
 
       <h2>Step 1: Open the Builder</h2>
       <p>
         Navigate to the <Link href="/" className="text-blue-600 hover:underline">Agent Builder</Link> to start the configuration wizard.
+        Select a provider first. The steps below describe the Claude/OpenAI/Copilot TypeScript
+        flow. HuggingFace instead offers a short configuration flow and runs with
+        <code> npx @huggingface/tiny-agents run .</code> after inference/MCP setup, without a build.
       </p>
 
       <h2>Step 2: Choose a Domain</h2>
@@ -47,7 +50,8 @@ export default function QuickStartPage() {
 
       <h2>Step 4: Configure SDK</h2>
       <p>
-        Select your AI provider:
+        Select an example model for the provider chosen at the start. Confirm availability
+        and pricing in the linked provider documentation:
       </p>
       <ul>
         <li><strong>Claude Agent SDK</strong> (recommended) - Claude Sonnet 4.5, Haiku 4.5, or Opus 4.1</li>

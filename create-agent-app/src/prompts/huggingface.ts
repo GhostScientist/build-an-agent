@@ -48,6 +48,7 @@ async function promptAgentInfo(): Promise<{ name: string; description: string }>
  * Step 2: Model selection from HuggingFace models
  */
 async function promptModelSelection(): Promise<string> {
+  console.log(styles.dim('Model examples are not a live catalogue. Check inference access, tool support, and pricing.'));
   const response = await prompt<{ model: string }>({
     type: 'select',
     name: 'model',

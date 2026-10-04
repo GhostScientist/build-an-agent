@@ -12,7 +12,7 @@ export default function RunningAgentPage() {
     >
       <h2>Prerequisites</h2>
       <ul>
-        <li>Node.js 18 or later (20.19+ for GitHub Copilot agents)</li>
+        <li>Node.js 22.12 or later; check the generated package.json</li>
         <li>npm or yarn</li>
         <li>
           API key from your chosen provider (Anthropic or OpenAI), or an active GitHub
@@ -214,7 +214,7 @@ my-agent`}
         If TypeScript compilation fails:
       </p>
       <ul>
-        <li>Ensure Node.js 18+ is installed</li>
+        <li>Ensure a supported Node.js version matching package.json is installed</li>
         <li>Delete <code>node_modules</code> and run <code>npm install</code> again</li>
         <li>Check for syntax errors in any customizations</li>
       </ul>

@@ -1,17 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   distDir: 'out',
-  experimental: {
-    typedRoutes: true,
-  },
+  typedRoutes: true,
   images: {
     unoptimized: true,
-    domains: ['images.unsplash.com'],
+    remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com' }],
   },
   webpack: (config, { isServer }) => {
     // Monaco Editor support

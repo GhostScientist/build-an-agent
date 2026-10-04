@@ -31,12 +31,12 @@ export async function promptProviderOnly(): Promise<{ provider: SDKProvider }> {
       },
       {
         name: 'copilot',
-        message: `GitHub Copilot ${styles.dim('- Full TypeScript app, no API key')}`,
+        message: `GitHub Copilot ${styles.dim('- TypeScript app, Copilot access required')}`,
         value: 'copilot',
       },
       {
         name: 'huggingface',
-        message: `HuggingFace Tiny Agents ${styles.dim('- Lightweight, instant run')}`,
+        message: `HuggingFace Tiny Agents ${styles.dim('- Config files, external runtime and inference required')}`,
         value: 'huggingface',
       },
     ],
@@ -51,6 +51,7 @@ export async function promptProviderOnly(): Promise<{ provider: SDKProvider }> {
  */
 export async function promptModelForProvider(provider: SDKProvider): Promise<string> {
   const models = getModelsForProvider(provider);
+  console.log(styles.dim('Model examples are not a live catalogue. Check provider access, tool support, and pricing before running.'));
 
   const modelResponse = await prompt<{ model: string }>({
     type: 'select',

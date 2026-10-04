@@ -44,30 +44,30 @@ const providers = [
   {
     id: 'copilot' as SDKProvider,
     name: 'GitHub Copilot SDK',
-    description: 'Drives the same agent runtime as Copilot CLI. Uses your Copilot subscription instead of an API key.',
+    description: 'Drives the Copilot CLI runtime. Requires Copilot access through a supported login or token; usage limits and organization policies apply.',
     icon: null, // Will use SVG
     gradient: 'from-slate-700 to-gray-900',
     highlights: [
-      'No API key — uses your Copilot subscription',
+      'Copilot CLI login or supported GitHub token',
       'Built-in file, search and shell tools',
       'Reads .github/copilot-instructions.md and AGENTS.md'
     ],
-    setupInfo: 'Full project • TypeScript • Node.js 20.19+ required',
+    setupInfo: 'Full project • TypeScript • See generated Node.js requirements',
     recommended: false,
     flowType: 'full' as const
   },
   {
     id: 'huggingface' as SDKProvider,
     name: 'HuggingFace Tiny Agents',
-    description: 'Lightweight agent config that runs instantly. Perfect for quick prototypes and sharing on HuggingFace Hub.',
+    description: 'Lightweight configuration for the tiny-agents runtime. Requires inference access and any configured MCP servers.',
     icon: '🤗',
     gradient: 'from-yellow-500 to-amber-600',
     highlights: [
-      'Zero build step - run instantly',
+      'No local build step; runtime downloaded separately',
       'Publish to HuggingFace Hub',
       'Open-source models'
     ],
-    setupInfo: 'Single-page setup • Config files only • Instant',
+    setupInfo: 'Single-page setup • Config files only • External runtime',
     recommended: false,
     flowType: 'lightweight' as const
   }
@@ -129,7 +129,7 @@ export function ProviderSelection({ config, updateConfig }: ProviderSelectionPro
               )}
               {provider.flowType === 'lightweight' && (
                 <span className="bg-amber-500 text-white text-xs font-medium px-2 py-1 rounded-full">
-                  Instant Setup
+                  Config-only Setup
                 </span>
               )}
             </div>

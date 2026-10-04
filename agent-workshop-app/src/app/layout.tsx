@@ -6,20 +6,20 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Agent Workshop - Build AI Agents on Any SDK',
-  description: 'The provider-agnostic AI agent builder. One wizard, four runtimes: Claude Agent SDK, OpenAI Agents SDK, GitHub Copilot SDK, and HuggingFace Tiny Agents. Configure tools and permissions, then download a complete TypeScript agent CLI.',
+  title: 'Agent Workshop - Learn to Build AI Agents',
+  description: 'Explore four agent runtimes. Generate a TypeScript starter for Claude, OpenAI, or GitHub Copilot, or a HuggingFace tiny-agents configuration. Inspect the code, test boundaries, and evaluate results.',
   keywords: ['AI agents', 'Claude', 'OpenAI', 'GitHub Copilot', 'HuggingFace', 'agent builder', 'provider agnostic', 'automation', 'no-code'],
   authors: [{ name: 'Dakota Kim / reasoning.software (MadWatch LLC)' }],
   openGraph: {
-    title: 'Agent Workshop - Build AI Agents on Any SDK',
-    description: 'One wizard, four agent SDKs: Claude, OpenAI, GitHub Copilot, and HuggingFace. Build specialized AI assistants for any domain without vendor lock-in.',
+    title: 'Agent Workshop - Learn to Build AI Agents',
+    description: 'Learn with editable TypeScript starters for Claude, OpenAI, and Copilot, or lightweight HuggingFace configurations. Free builder; provider usage may cost money.',
     type: 'website',
     url: 'https://agent-workshop.dev',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Agent Workshop - Build AI Agents on Any SDK',
-    description: 'One wizard, four agent SDKs: Claude, OpenAI, GitHub Copilot, and HuggingFace. Build specialized AI assistants for any domain without vendor lock-in.',
+    title: 'Agent Workshop - Learn to Build AI Agents',
+    description: 'Learn with editable TypeScript starters for Claude, OpenAI, and Copilot, or lightweight HuggingFace configurations. Free builder; provider usage may cost money.',
   },
   viewport: 'width=device-width, initial-scale=1',
   themeColor: '#3b82f6',

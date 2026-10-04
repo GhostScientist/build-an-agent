@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src scripts e2e",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:generator": "tsx scripts/generator-smoke.ts",
@@ -24,41 +24,42 @@
     "generate:agents:copilot": "tsx scripts/generate-all-agents.ts --provider copilot"
   },
   "dependencies": {
-    "@headlessui/react": "^1.7.17",
-    "@heroicons/react": "^2.0.18",
-    "@monaco-editor/react": "^4.6.0",
-    "clsx": "^2.0.0",
+    "@headlessui/react": "^1.7.19",
+    "@heroicons/react": "^2.2.0",
+    "@monaco-editor/react": "^4.7.0",
+    "clsx": "^2.1.1",
     "file-saver": "^2.0.5",
-    "framer-motion": "^10.16.16",
-    "jszip": "^3.10.1",
+    "framer-motion": "^10.18.0",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.293.0",
     "monaco-editor": "^0.45.0",
-    "next": "14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.4.1",
-    "react-syntax-highlighter": "^15.6.6",
-    "tailwind-merge": "^2.0.0",
-    "zod": "^3.22.4",
-    "zustand": "^4.4.7"
+    "next": "15.5.27",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.1",
+    "react-syntax-highlighter": "^16.1.1",
+    "tailwind-merge": "^2.6.1",
+    "zod": "^3.25.76",
+    "zustand": "^4.5.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1",
-    "@tailwindcss/forms": "^0.5.7",
-    "@tailwindcss/typography": "^0.5.10",
+    "@eslint/eslintrc": "^3.3.7",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/file-saver": "^2.0.7",
-    "@types/node": "^20.10.0",
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "autoprefixer": "^10.4.16",
-    "eslint": "^8.56.0",
-    "eslint-config-next": "14.0.4",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^3.3.6",
-    "typescript": "^5.3.3",
+    "autoprefixer": "^10.6.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "15.5.27",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
     "ts-node": "^10.9.2",
-    "tsx": "^4.7.1"
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "ai-agents",
@@ -69,6 +70,6 @@
     "automation"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   }
 }

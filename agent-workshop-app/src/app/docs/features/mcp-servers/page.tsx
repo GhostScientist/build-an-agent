@@ -15,6 +15,15 @@ export default function MCPServersPage() {
         and data sources. This reference covers all available server templates and
         configuration options.
       </p>
+      <Callout type="warning" title="Runtime support differs">
+        <p>
+          Configuration files do not guarantee a working connection. Claude and Copilot
+          connect supported servers through their runtimes; Tiny Agents uses agent.json.
+          The generated OpenAI adapter currently needs you to implement the SDK MCP
+          connection lifecycle. Verify credentials, transport support, and tool availability.
+          MCP servers are executable code or remote services, not trusted by default.
+        </p>
+      </Callout>
 
       <h2>Transport Types</h2>
 
@@ -38,7 +47,7 @@ export default function MCPServersPage() {
 
       <h3>http</h3>
       <p>
-        HTTP transport connects to a REST endpoint.
+        HTTP transport connects to an MCP-compatible HTTP endpoint, not an arbitrary REST API.
       </p>
       <CodeBlock
         language="json"
